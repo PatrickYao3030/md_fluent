@@ -7,36 +7,40 @@
 
 FILE *fout;
 
-void Print_Thread_Face_Centroids(Domain *domain, int id)
+void Print_Thread_Face_Centroids(Thread *t_face)
 {
   real FC[ND_ND];
-  face_t f;
-  Thread *t = Lookup_Thread(domain, id);
-  fprintf(fout,"thread id %d\n", id);
-  begin_f_loop(f,t)
+  face_t i_face;
+  
+  fprintf(fout,"Face thread id %d\n", THREAD_ID(t_face));
+  begin_f_loop(i_face,t_face)
   {
-    F_CENTROID(FC,f,t);
+    F_CENTROID(FC,i_face,t_face);
     if (ND_ND == 2)
 		{
-			fprintf(fout, "f%d %g %g\n", f, FC[0], FC[1]);
+			fprintf(fout, "f%d %g %g\n", i_face, FC[0], FC[1]);
 		}
 		if (ND_ND == 3)
 		{
-			fprintf(fout, "f%d %g %g %g\n", f, FC[0], FC[1], FC[2]);
+			fprintf(fout, "f%d %g %g %g\n", i_face, FC[0], FC[1], FC[2]);
 		}
   }
-  end_f_loop(f,t)
-  fprintf(fout, "\n");
+  end_f_loop(i_face,t_face)
+  fprintf(fout, "Completed face thread id %d\n");
+	fprintf(fout, "\n");
 }
 
 DEFINE_ON_DEMAND(get_coords)
 {
   Domain *domain;
+	Thread *tf_13, *tf_14;
   domain = Get_Domain(1);
+	tf_13 = Lookup_Thread(domain, 13);
+	tf_14 = Lookup_Thread(domain, 14);
   fout = fopen("faces.out", "w");
-	fprintf(fout, "%d dimensional domain\n", ND_ND);
-  Print_Thread_Face_Centroids(domain, 13);
-	Print_Thread_Face_Centroids(domain, 14);
+	fprintf(fout, "%d dimensional domain\n", ND_ND); // ND_ND is a constant defined in ND macro, ref. UDF manual 3.4.2.1
+  Print_Thread_Face_Centroids(tf_13);
+	Print_Thread_Face_Centroids(tf_14);
   fclose(fout);
 }
 
