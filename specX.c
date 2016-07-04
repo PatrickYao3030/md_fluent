@@ -12,10 +12,44 @@
 #include "mem.h"
 #include "metric.h"
 
+FILE *fout;
+
+DEFINE_INIT(idf_cells, domain)
+{
+ 	cell_t i_cell0, i_cell1; // global cell index
+	face_t i_face = -1; // global face index
+	Thread *t_FeedFluid;
+	Thread *t_FeedInterface;
+	real loc[ND_ND];
+
+	t_FeedFluid = Lookup_Thread(domain, 5);
+	t_FeedInterface = Lookup_Thread(domain, 13);
+	fout = fopen("idf_cells.out", "w");
+
+	begin_f_loop(i_face, t_FeedFluid)
+	{
+		i_cell0, i_cell1 = -1; // initiate the global cell index
+		i_cell0 = F_C0(i_face, t_FeedInterface);
+		i_cell1 = F_C1(i_face, t_FeedInterface);
+		if (i_cell1 == -1)
+		{
+			C_CENTROID(loc, i_cell0, t_FeedFluid); // get the location of cell centroid
+			//C_UDMI(i_cell0, t_FeedFluid, 0) = 1; // use the UDMI0 to store the identified cell, where 1 means that the cell is adjacent to the boundary
+			fprintf(fout, "Global cell#%d %g %g\n", i_cell0, loc[0], loc[1]);
+		}
+		else
+		{
+			//C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // use the UDMI0 to store the identified cell, where -1 indicates an interior cell
+		}
+	}
+	end_f_loop(i_face, t_FeedFluid)
+	fprintf(fout, "Tranfer data are completed.\n");
+}
+
 DEFINE_SOURCE(evap_adj_membr, i_cell, t_cell, dS, eqn)
 {
 	Domain *domain; 
-	Thread *t_FeedInterface; // pointer of the thread of faces
+	Thread *t_FeedInterface, *t_face; // pointer of the thread of faces
 	face_t i_face = -1; // index of face
 	cell_t i_cell0, i_cell1 = -1; // indexes of adjacent cells for boundary identification
 	int i_local;
@@ -29,8 +63,9 @@ DEFINE_SOURCE(evap_adj_membr, i_cell, t_cell, dS, eqn)
 		c_face_loop(i_cell, t_cell, i_local) // loop all faces for the given cell of (i_cell, t_cell)
 		{
 			i_face = C_FACE(i_cell, t_cell, i_local); // global face index for the given cell
-			i_cell0 = F_C0(i_face, t_FeedInterface); // return the adjacent cell index of the face, ref. "3.2.5 connectivity macro"
-			i_cell1 = F_C1(i_face, t_FeedInterface); // return none at the boundary
+			t_face = C_FACE_THREAD(i_cell, t_cell, i_local); // return the thread of the face that is returned by above C_FACE 
+			i_cell0 = F_C0(i_face, t_face); // return the adjacent cell index of the face, ref. "3.2.5 connectivity macro"
+			i_cell1 = F_C1(i_face, t_face); // return none at the boundary
 			if (i_cell1 == -1)
 			{
 				source = 0.01;
