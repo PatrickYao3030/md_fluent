@@ -17,33 +17,61 @@ FILE *fout;
 DEFINE_INIT(idf_cells, domain)
 {
  	cell_t i_cell0, i_cell1; // global cell index
+	cell_t i_cell;
 	face_t i_face = -1; // global face index
 	Thread *t_FeedFluid;
 	Thread *t_FeedInterface;
-	real loc[ND_ND];
+	Thread *t_cell;
+	real loc0[ND_ND], loc1[ND_ND];
+	int i_local;
 
 	t_FeedFluid = Lookup_Thread(domain, 5);
 	t_FeedInterface = Lookup_Thread(domain, 13);
 	fout = fopen("idf_cells.out", "w");
 
-	begin_f_loop(i_face, t_FeedFluid)
+	thread_loop_c(t_cell, domain)
 	{
-		i_cell0, i_cell1 = -1; // initiate the global cell index
-		i_cell0 = F_C0(i_face, t_FeedInterface);
-		i_cell1 = F_C1(i_face, t_FeedInterface);
-		if (i_cell1 == -1)
+		begin_c_loop(i_cell, t_cell)
 		{
-			C_CENTROID(loc, i_cell0, t_FeedFluid); // get the location of cell centroid
-			//C_UDMI(i_cell0, t_FeedFluid, 0) = 1; // use the UDMI0 to store the identified cell, where 1 means that the cell is adjacent to the boundary
-			fprintf(fout, "Global cell#%d %g %g\n", i_cell0, loc[0], loc[1]);
+			C_CENTROID(loc0, i_cell, t_cell); // get the location of current cell
+			begin_f_loop(i_face, t_FeedInterface) // search the adjacent cells for the given boundary
+			{
+				i_cell0, i_cell1 = -1;
+				i_cell0 = F_C0(i_face, t_FeedInterface);
+				i_cell1 = F_C1(i_face, t_FeedInterface);
+				if (i_cell1 == -1)
+				{
+					C_CENTROID(loc1, i_cell0, t_FeedFluid); // get the location of cell centroid
+					if ((loc0[0] == loc1[0]) && (loc0[1] == loc1[1]))
+					{
+						fprintf(fout, "Cell#%d %g %g\n", i_cell0, loc1[0], loc1[1]);
+						C_UDMI(i_cell, t_cell, 0) = 1;
+					}
+				}
+			}
+			end_f_loop(i_face, t_FeedInterface)
 		}
-		else
-		{
-			//C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // use the UDMI0 to store the identified cell, where -1 indicates an interior cell
-		}
+		end_c_loop(i_cell, t_cell)
 	}
-	end_f_loop(i_face, t_FeedFluid)
-	fprintf(fout, "Tranfer data are completed.\n");
+
+	//begin_f_loop(i_face, t_FeedFluid)
+	//{
+	//	i_cell0, i_cell1 = -1; // initiate the global cell index
+	//	i_cell0 = F_C0(i_face, t_FeedInterface);
+	//	i_cell1 = F_C1(i_face, t_FeedInterface);
+	//	if (i_cell1 == -1)
+	//	{
+	//		//C_CENTROID(loc, i_cell0, t_FeedFluid); // get the location of cell centroid
+	//		F_UDMI(i_face, t_FeedFluid, 0) = 1; // use the UDMI0 to store the identified cell, where 1 means that the cell is adjacent to the boundary
+	//		//fprintf(fout, "Global cell#%d %g %g\n", i_cell0, loc[0], loc[1]);
+	//	}
+	//	else
+	//	{
+	//		F_UDMI(i_face, t_FeedFluid, 0) = -1; // use the UDMI0 to store the identified cell, where -1 indicates an interior cell
+	//	}
+	//}
+	//end_f_loop(i_face, t_FeedFluid)
+	//fprintf(fout, "Tranfer data are completed.\n");
 }
 
 DEFINE_SOURCE(evap_adj_membr, i_cell, t_cell, dS, eqn)
