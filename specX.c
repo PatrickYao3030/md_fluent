@@ -15,6 +15,8 @@
 FILE *fout;
 
 DEFINE_INIT(idf_cells, domain)
+// identify the cells, which are adjacent to both sides of the membrane
+// use C_UDMI(0) to store the identifier, which marks as -1 or 1 for the adjacent cells and 0 (not set) for others 
 {
  	cell_t i_cell0, i_cell1; // global cell index
 	cell_t i_cell;
@@ -36,7 +38,7 @@ DEFINE_INIT(idf_cells, domain)
 		begin_c_loop(i_cell, t_cell)
 		{
 			C_CENTROID(loc0, i_cell, t_cell); // get the location of current cell
-			begin_f_loop(i_face, t_FeedInterface) // search the adjacent cells for the feed-side membrane
+			begin_f_loop(i_face, t_FeedInterface) // search the adjacent cells for the feed-side membrane. REMARKS: it has a very low efficiency.
 			{
 				i_cell0, i_cell1 = -1;
 				i_cell0 = F_C0(i_face, t_FeedInterface);
@@ -72,36 +74,49 @@ DEFINE_INIT(idf_cells, domain)
 	}
 }
 
+DEFINE_ADJUST(calc_flux, domain)
+// calculate the flux across the membrane
+// the flux will also convert into the source of the adjacent cell, which will store in C_UDMI(1) for passing to the source term
+{
+	Thread *t_cell;
+	cell_t i_cell;
+	real TW[2], XW[2]; // wall temperatures and mass fraction of component 0
+	real loc0[ND_ND], loc1[ND_ND];
+	real coeff = 3.e-7;
+	real mass_flux, heat_flux; 
+
+	thread_loop_c(t_cell, domain)
+	{
+		begin_c_loop(i_cell, t_cell)
+		{
+			if (C_UDMI(i_cell, t_cell, 0) == -1) // the cell is adjacent to the feed-side membrane wall
+			{
+				TW[0] = C_T(i_cell, t_cell); // the component of TW[0] indicates the feed-side temperature of the membrane surface
+				XW[0] = C_YI(i_cell, t_cell, 0);
+				C_CENTROID(loc0, i_cell, t_cell); // get the coordinate of the cell
+			}
+			if (C_UDMI(i_cell, t_cell, 0) == +1)
+			{
+				C_CENTROID(loc1, i_cell, t_cell);
+				if (loc0[0] == loc1[0])
+				{
+					TW[1] = C_T(i_cell, t_cell); // the component of TW[1] means the permeate-side wall temperature
+					XW[1] = C_YI(i_cell, t_cell, 0);
+				}
+			}
+			mass_flux = coeff*(psat_h2o(TW[0])-psat_h2o(TW[1])); // use psat_h2o() in toolkits.c to calculate the saturated vapor pressure of h2o for the given temperature
+			C_UDMI(i_cell, t_cell, 1) = mass_flux;
+		}
+		end_c_loop(i_cell, t_cell)
+	}
+}
+
 DEFINE_SOURCE(evap_adj_membr, i_cell, t_cell, dS, eqn)
 {
-	Domain *domain; 
-	Thread *t_FeedInterface, *t_face; // pointer of the thread of faces
-	face_t i_face = -1; // index of face
-	cell_t i_cell0, i_cell1 = -1; // indexes of adjacent cells for boundary identification
-	int i_local;
 	real source; // returning result
 
-	domain = Get_Domain(1); // explicit declaration of mixture
-	t_FeedInterface = Lookup_Thread(domain, 13); // explicitly get the boundary, whose id (13) should be consisted with GUI display
-	
-	if (THREAD_ID(t_cell) == 5) // check the zone, whose id (5) should be shown at GUI display
-	{
-		c_face_loop(i_cell, t_cell, i_local) // loop all faces for the given cell of (i_cell, t_cell)
-		{
-			i_face = C_FACE(i_cell, t_cell, i_local); // global face index for the given cell
-			t_face = C_FACE_THREAD(i_cell, t_cell, i_local); // return the thread of the face that is returned by above C_FACE 
-			i_cell0 = F_C0(i_face, t_face); // return the adjacent cell index of the face, ref. "3.2.5 connectivity macro"
-			i_cell1 = F_C1(i_face, t_face); // return none at the boundary
-			if (i_cell1 == -1)
-			{
-				source = 0.01;
-			}
-			else
-			{
-				source = 0.;
-			}
-		}
-	}
+	source = C_UDMI(i_cell, t_cell, 0)*.01;
   dS[eqn] = 0.;
+
   return source;
 }
