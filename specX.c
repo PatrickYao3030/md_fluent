@@ -40,28 +40,37 @@ DEFINE_INIT(idf_cells, domain)
 	t_PermInterface = Lookup_Thread(domain, 14);
 	//fout0 = fopen("idf_cells0.out", "w");
 	//fout1 = fopen("idf_cells1.out", "w");
-	//fout2 = fopen("idf_cell2.out", "w");
+	fout2 = fopen("idf_cell2.out", "w");
 	//fout3 = fopen("idf_cell3.out", "w");
 
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
+		fprintf(fout2, "Feeding interface#%d, adj.cell#%d at %g %g\n", i_face0, i_cell0, loc0[0], loc0[1]);
+		//begin_f_loop(i_face1, t_PermInterface)
+		//{
+		//	i_cell1 = F_C0(i_face1, t_PermInterface);
+		//	C_CENTROID(loc1, i_cell1, t_PermFluid);
+		//	fprintf(fout2, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
+		//}
+		//end_f_loop(i_face1, t_PermInterface)
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the cell
 	}
 	end_f_loop(i_face0, t_FeedInterface)
 
 	begin_f_loop(i_face1, t_PermInterface) // find the adjacent cells for the permeate-side membrane.
 	{
-		i_cell0 = F_C0(i_face1, t_PermInterface);
-		C_CENTROID(loc1, i_cell0, t_PermFluid); // get the location of cell centroid
-		C_UDMI(i_cell0, t_PermFluid, 0) = +1; // mark the cell
+		i_cell1 = F_C0(i_face1, t_PermInterface);
+		C_CENTROID(loc1, i_cell1, t_PermFluid); // get the location of cell centroid
+		fprintf(fout2, "Permeating interface#%d, adj.cell#%d at %g %g\n", i_face1, i_cell1, loc1[0], loc1[1]);
+		C_UDMI(i_cell1, t_PermFluid, 0) = +1; // mark the cell
 	}
 	end_f_loop(i_face1, t_PermInterface)
 
 	//for (i = 0; i<999; i++)
 	//	fprintf(fout2, "%d Cell index %d and locates at %g %g\n", WallCells[i].seq, WallCells[i].index, WallCells[i].centroid[0], WallCells[i].centroid[1]);
-	//fclose(fout2);
+	fclose(fout2);
 	//fclose(fout0);
 	//fclose(fout1);
 }
