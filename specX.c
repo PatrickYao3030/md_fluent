@@ -45,27 +45,17 @@ DEFINE_INIT(idf_cells, domain)
 
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
-		i_cell0, i_cell1 = -1;
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
-		i_cell1 = F_C1(i_face0, t_FeedInterface);
-		if (i_cell1 == -1)
-		{
-			C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-			C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the cell
-		}
+		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
+		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the cell
 	}
 	end_f_loop(i_face0, t_FeedInterface)
 
 	begin_f_loop(i_face1, t_PermInterface) // find the adjacent cells for the permeate-side membrane.
 	{
-		i_cell0, i_cell1 = -1;
 		i_cell0 = F_C0(i_face1, t_PermInterface);
-		i_cell1 = F_C1(i_face1, t_PermInterface);
-		if (i_cell1 == -1)
-		{
-			C_CENTROID(loc1, i_cell0, t_PermFluid); // get the location of cell centroid
-			C_UDMI(i_cell0, t_PermFluid, 0) = +1; // mark the cell
-		}
+		C_CENTROID(loc1, i_cell0, t_PermFluid); // get the location of cell centroid
+		C_UDMI(i_cell0, t_PermFluid, 0) = +1; // mark the cell
 	}
 	end_f_loop(i_face1, t_PermInterface)
 
