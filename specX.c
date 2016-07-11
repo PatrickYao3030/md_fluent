@@ -16,7 +16,7 @@
 
 FILE *fout0, *fout1, *fout2, *fout3;
 
-int UC_cell_index[MAXCELLNUM];
+int UC_cell_index[MAXCELLNUM][2];
 real UC_cell_centroid[MAXCELLNUM][ND_ND];
 int gid = 0;
 
@@ -40,7 +40,6 @@ DEFINE_INIT(idf_cells, domain)
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
 	int i = 0;
-	extern int gid; // declare the global variables
 
 	d_feed = Get_Domain(1);
 	d_perm = Get_Domain(2);
@@ -50,7 +49,7 @@ DEFINE_INIT(idf_cells, domain)
 	t_PermInterface = Lookup_Thread(domain, 14);
 	//fout0 = fopen("idf_cells0.out", "w");
 	//fout1 = fopen("idf_cells1.out", "w");
-	fout2 = fopen("idf_cell2.out", "w");
+	//fout2 = fopen("idf_cell2.out", "w");
 	fout3 = fopen("idf_cell3.out", "w");
 
 	// ****** FEATURE TRIAL-02: the passed domain contains the both sides of membrane ******
@@ -70,11 +69,13 @@ DEFINE_INIT(idf_cells, domain)
 	//}
 	// ****** END OF TRIAL-02 ******
 
+	gid = 0;
+
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		fprintf(fout2, "Feeding interface#%d, adj.cell#%d at %g %g\n", i_face0, i_cell0, loc0[0], loc0[1]);
+		//fprintf(fout2, "Feeding interface#%d, adj.cell#%d at %g %g\n", i_face0, i_cell0, loc0[0], loc0[1]);
 		// ****** The following loop doesn't run ******
 		//begin_f_loop(i_face1, t_PermInterface)
 		//{
@@ -85,21 +86,27 @@ DEFINE_INIT(idf_cells, domain)
 		//end_f_loop(i_face1, t_PermInterface)
 		// ****** The reason has not been found yet ******
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the cell
+		UC_cell_index[gid++][0] = i_cell0;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
+	fprintf(fout3, "%d feeding wall cells have been stored.\n", gid);
+
+	gid = 0; // reset the global index
 
 	begin_f_loop(i_face1, t_PermInterface) // find the adjacent cells for the permeate-side membrane.
 	{
 		i_cell1 = F_C0(i_face1, t_PermInterface);
 		C_CENTROID(loc1, i_cell1, t_PermFluid); // get the location of cell centroid
-		fprintf(fout3, "Permeating interface#%d, adj.cell#%d at %g %g\n", i_face1, i_cell1, loc1[0], loc1[1]);
+		//fprintf(fout3, "Permeating interface#%d, adj.cell#%d at %g %g\n", i_face1, i_cell1, loc1[0], loc1[1]);
 		C_UDMI(i_cell1, t_PermFluid, 0) = +1; // mark the cell
+		UC_cell_index[gid++][1] = i_cell1;
 	}
 	end_f_loop(i_face1, t_PermInterface)
-
-	//for (i = 0; i<9999; i++)
-	//	fprintf(fout3, "%d Cell index %d and locates at %g %g\n", Cells[i].seq, Cells[i].index, Cells[i].centroid[0], Cells[i].centroid[1]);
-	fclose(fout2);
+	fprintf(fout3, "%d permeating wall cells have been stored.\n", gid);
+	
+	for (i = 0; i<9999; i++)
+		fprintf(fout3, "%d Cell index %d %d\n", i, UC_cell_index[i][0], UC_cell_index[i][1]);
+	//fclose(fout2);
 	fclose(fout3);
 	//fclose(fout0);
 	//fclose(fout1);
