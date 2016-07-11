@@ -12,30 +12,35 @@
 #include "mem.h"
 #include "metric.h"
 
+#define MAXCELLNUM 9999
+
 FILE *fout0, *fout1, *fout2, *fout3;
 
-struct CellInfo
-{
-	int seq;
-	int index;
-	real centroid[ND_ND];
-} WallCells[999], Cells[9999];
-
+int UC_cell_index[MAXCELLNUM];
+real UC_cell_centroid[MAXCELLNUM][ND_ND];
 int gid = 0;
+
+//struct CellInfo
+//{
+//	int seq;
+//	int index;
+//	real centroid[ND_ND];
+//} WallCells[999], UCCell;
+
 
 DEFINE_INIT(idf_cells, domain)
 // identify the cells, which are adjacent to both sides of the membrane
 // use C_UDMI(0) to store the identifier, which marks as -1 or 1 for the adjacent cells and 0 (not set) for others 
 {
 	Domain *d_feed, *d_perm;
-	cell_t i_cell, i_cell0, i_cell1; // global cell index
-	face_t i_face0, i_face1; // global face index
+	cell_t i_cell, i_cell0, i_cell1;
+	face_t i_face0, i_face1;
 	Thread *t_FeedFluid, *t_PermFluid;
 	Thread *t_FeedInterface, *t_PermInterface;
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
 	int i = 0;
-	extern int gid;
+	extern int gid; // declare the global variables
 
 	d_feed = Get_Domain(1);
 	d_perm = Get_Domain(2);
@@ -53,13 +58,12 @@ DEFINE_INIT(idf_cells, domain)
 		begin_c_loop(i_cell, t_cell)
 		{
 			C_CENTROID(loc, i_cell, t_cell);
-			fprintf(fout2, "cell#%d %g %g\n", i_cell, loc[0], loc[1]);
-			Cells[gid].seq = gid;
-			Cells[gid].index = i_cell;
-			Cells[gid].centroid[0] = loc[0];
-			Cells[gid].centroid[1] = loc[1];
+			fprintf(fout2, "%d cell#%d %g %g\n", gid, i_cell, loc[0], loc[1]);
+			UC_cell_index[gid] = i_cell;
+			UC_cell_centroid[gid][0] = loc[0];
+			UC_cell_centroid[gid][1] = loc[1];
+			fprintf(fout3, "Cell index %d and locates at %g %g\n", UC_cell_index[gid], UC_cell_centroid[gid][0], UC_cell_centroid[gid][1]);
 			gid++;
-			fprintf(fout3, "%d Cell index %d and locates at %g %g\n", Cells[gid].seq, Cells[gid].index, Cells[gid].centroid[0], Cells[gid].centroid[1]);
 		}
 		end_c_loop(i_cell, t_cell)
 	}
