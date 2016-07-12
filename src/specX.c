@@ -55,7 +55,7 @@ DEFINE_INIT(idf_cells, domain)
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
 	int i = 0;
-	double T;
+	real temp = 0.0;
 
 	d_feed = Get_Domain(1);
 	d_perm = Get_Domain(2);
@@ -122,8 +122,8 @@ DEFINE_INIT(idf_cells, domain)
 	for (i = 0; i<9999; i++)
 		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, UC_cell_index[i][0], UC_cell_centroid[i][0][0], UC_cell_centroid[i][1][0], UC_cell_T[i][0], UC_cell_WX[i][0], UC_cell_index[i][1], UC_cell_centroid[i][0][1], UC_cell_centroid[i][1][1], UC_cell_T[i][1], UC_cell_WX[i][1]);
 	
-	T = 373.15;
-	fprintf(fout0, "T = %g(K) saturated vapor pressure is %g\n", T, psat_h2o(T));
+	temp = 353.15;
+	fprintf(fout0, "T = %g (K) saturated vapor pressure is %g (Pa)\n", temp, psat_h2o(temp));
 
 	fclose(fout2);
 	fclose(fout3);

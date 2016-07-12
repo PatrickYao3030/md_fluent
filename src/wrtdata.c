@@ -11,6 +11,7 @@ void Print_Thread_Face_Centroids(Thread *t_face)
 {
   real FC[ND_ND];
   face_t i_face;
+	real T=353.15;
   
   fprintf(fout,"Face thread id %d\n", THREAD_ID(t_face));
   begin_f_loop(i_face,t_face)
@@ -28,4 +29,6 @@ void Print_Thread_Face_Centroids(Thread *t_face)
   end_f_loop(i_face,t_face)
   fprintf(fout, "Completed face thread id %d\n");
 	fprintf(fout, "\n");
+	fprintf(fout, "T = %g(K) saturated vapor pressure is %g\n", T, psat_h2o(T));
+	fclose(fout);
 }
