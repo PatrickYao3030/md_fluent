@@ -7,6 +7,9 @@
  Allocate the appropriate number (1) of memory location(s) in the 
   User-Defined Memory dialog box in ANSYS FLUENT
 ********************************************************************/
+/******************************************************************** 
+ The codes are for running in serial only. 
+********************************************************************/
 
 #include "udf.h"
 #include "mem.h"
@@ -16,7 +19,7 @@
 
 FILE *fout0, *fout1, *fout2, *fout3;
 
-int UC_cell_index[MAXCELLNUM][2];
+int UC_cell_index[MAXCELLNUM];
 real UC_cell_centroid[MAXCELLNUM][ND_ND];
 int gid = 0;
 
@@ -69,8 +72,6 @@ DEFINE_INIT(idf_cells, domain)
 	//}
 	// ****** END OF TRIAL-02 ******
 
-	gid = 0;
-
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
@@ -86,12 +87,15 @@ DEFINE_INIT(idf_cells, domain)
 		//end_f_loop(i_face1, t_PermInterface)
 		// ****** The reason has not been found yet ******
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the cell
-		UC_cell_index[gid++][0] = i_cell0;
+		UC_cell_index[gid] = i_cell0;
+		UC_cell_centroid[gid][0] = loc0[0];
+		UC_cell_centroid[gid][1] = loc0[1];
+		gid++;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
 	fprintf(fout3, "%d feeding wall cells have been stored.\n", gid);
 
-	gid = 0; // reset the global index
+	//gid = 0; // reset the global index
 
 	begin_f_loop(i_face1, t_PermInterface) // find the adjacent cells for the permeate-side membrane.
 	{
@@ -99,13 +103,16 @@ DEFINE_INIT(idf_cells, domain)
 		C_CENTROID(loc1, i_cell1, t_PermFluid); // get the location of cell centroid
 		//fprintf(fout3, "Permeating interface#%d, adj.cell#%d at %g %g\n", i_face1, i_cell1, loc1[0], loc1[1]);
 		C_UDMI(i_cell1, t_PermFluid, 0) = +1; // mark the cell
-		UC_cell_index[gid++][1] = i_cell1;
+		UC_cell_index[gid] = i_cell1;
+		UC_cell_centroid[gid][0] = loc1[0];
+		UC_cell_centroid[gid][1] = loc1[1];
+		gid++;
 	}
 	end_f_loop(i_face1, t_PermInterface)
 	fprintf(fout3, "%d permeating wall cells have been stored.\n", gid);
 	
 	for (i = 0; i<9999; i++)
-		fprintf(fout3, "%d Cell index %d %d\n", i, UC_cell_index[i][0], UC_cell_index[i][1]);
+		fprintf(fout3, "%d wall cell index %d %g %g\n", i, UC_cell_index[i], UC_cell_centroid[i][0], UC_cell_centroid[i][1]);
 	//fclose(fout2);
 	fclose(fout3);
 	//fclose(fout0);
