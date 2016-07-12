@@ -18,7 +18,7 @@
 #define MAXCELLNUM 9999
 #define EPS 5.0e-4
 
-FILE *fout0, *fout1, *fout2, *fout3;
+FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 
 int UC_cell_index[MAXCELLNUM][2]; // index of corresponding thread of cells
 real UC_cell_centroid[MAXCELLNUM][ND_ND][2]; // coordinate of centroid
@@ -66,7 +66,8 @@ DEFINE_INIT(idf_cells, domain)
 		UC_cell_index[gid][0] = i_cell0; // store the index of feed-side wall cell
 		UC_cell_centroid[gid][0][0] = loc0[0];
 		UC_cell_centroid[gid][1][0] = loc0[1];
-		//fprintf(fout2, "Feeding interface#%d, adj.cell#%d at %g %g\n", i_face0, i_cell0, loc0[0], loc0[1]);
+		UC_cell_T[gid][0] = C_T(i_cell0, t_FeedFluid);
+		UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
 		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
 		{
 			i_cell1 = F_C0(i_face1, t_PermInterface);
@@ -78,13 +79,14 @@ DEFINE_INIT(idf_cells, domain)
 				UC_cell_index[gid][1] = i_cell1; // store the index of permeate-side wall cell
 				UC_cell_centroid[gid][0][1] = loc1[0];
 				UC_cell_centroid[gid][1][1] = loc1[1];
+				UC_cell_T[gid][1] = C_T(i_cell1, t_PermFluid);
+				UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0);
 			}
 		}
 		end_f_loop(i_face1, t_PermInterface)
 		gid++;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
-	//fprintf(fout3, "%d feeding wall cells have been stored.\n", gid);
 
 	//gid = 0; // reset the global index
 
@@ -92,7 +94,6 @@ DEFINE_INIT(idf_cells, domain)
 	{
 		i_cell1 = F_C0(i_face1, t_PermInterface);
 		C_CENTROID(loc1, i_cell1, t_PermFluid); // get the location of cell centroid
-		//fprintf(fout3, "Permeating interface#%d, adj.cell#%d at %g %g\n", i_face1, i_cell1, loc1[0], loc1[1]);
 		begin_f_loop(i_face0, t_FeedInterface)
 		{
 			i_cell0 = F_C0(i_face0, t_FeedInterface);
@@ -107,10 +108,9 @@ DEFINE_INIT(idf_cells, domain)
 		C_UDMI(i_cell1, t_PermFluid, 0) = +1; // mark the cell
 	}
 	end_f_loop(i_face1, t_PermInterface)
-	//fprintf(fout3, "%d permeating wall cells have been stored.\n", gid);
 	
 	for (i = 0; i<9999; i++)
-		fprintf(fout2, "No.%d wall cell index %d located at %g %g, symmetric cell index %d at %g %g\n", i, UC_cell_index[i][0], UC_cell_centroid[i][0][0], UC_cell_centroid[i][1][0], UC_cell_index[i][1], UC_cell_centroid[i][0][1], UC_cell_centroid[i][1][1]);
+		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, UC_cell_index[i][0], UC_cell_centroid[i][0][0], UC_cell_centroid[i][1][0], UC_cell_T[i][0], UC_cell_WX[i][0], UC_cell_index[i][1], UC_cell_centroid[i][0][1], UC_cell_centroid[i][1][1], UC_cell_T[i][1], UC_cell_WX[i][1]);
 	fclose(fout2);
 	fclose(fout3);
 	//fclose(fout0);
@@ -139,13 +139,13 @@ DEFINE_ADJUST(calc_flux, domain)
 	t_PermInterface = Lookup_Thread(domain, 14);
 
 	for (i=0; i<9999; i++)
-	{
-		UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
-		UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
-		UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid);
-		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid);
-		fprintf(fout4, "Feed-side wall cell %d temperature %g, permeate-side wall cell %d temperature %g", UC_cell_index[i][0], UC_cell_T[i][0], UC_cell_index[i][1], UC_cell_T[i][1]);
-	}
+	//{
+	//	UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
+	//	UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
+	//	UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
+	//	UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
+		fprintf(fout4, "Feed-side wall cell %d temperature %g, permeate-side wall cell %d temperature %g\n", UC_cell_index[i][0], UC_cell_T[i][0], UC_cell_index[i][1], UC_cell_T[i][1]);
+	//}
 
 	begin_f_loop(i_face0, t_FeedInterface)
 	{
