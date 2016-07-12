@@ -24,6 +24,7 @@ int UC_cell_index[MAXCELLNUM][2]; // index of corresponding thread of cells
 real UC_cell_centroid[MAXCELLNUM][ND_ND][2]; // coordinate of centroid
 real UC_cell_T[MAXCELLNUM][2]; // temperature
 real UC_cell_WX[MAXCELLNUM][2]; // mass fraction of solute
+real UC_cell_massflux[MAXCELLNUM]; // transmembrane mass flux toward the permeate
 int gid = 0;
 
 //struct CellInfo
@@ -33,6 +34,14 @@ int gid = 0;
 //	real centroid[ND_ND];
 //} WallCells[999], UCCell;
 
+real MassFlux(real TW0, real TW1, real WW0, real WW1)
+{
+	real result = 0.0;
+	real drv_force = 0.0, resistance = 3.0e-7;
+	drv_force = psat_h2o(TW0)-psat_h2o(TW1);
+	result = drv_force/resistance;
+	return result;
+}
 
 DEFINE_INIT(idf_cells, domain)
 // identify the cells, which are adjacent to both sides of the membrane
@@ -46,6 +55,7 @@ DEFINE_INIT(idf_cells, domain)
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
 	int i = 0;
+	double T;
 
 	d_feed = Get_Domain(1);
 	d_perm = Get_Domain(2);
@@ -53,7 +63,7 @@ DEFINE_INIT(idf_cells, domain)
 	t_PermFluid = Lookup_Thread(domain, 6);
 	t_FeedInterface = Lookup_Thread(domain, 13);
 	t_PermInterface = Lookup_Thread(domain, 14);
-	//fout0 = fopen("idf_cells0.out", "w");
+	fout0 = fopen("idf_cells0.out", "w");
 	//fout1 = fopen("idf_cells1.out", "w");
 	fout2 = fopen("idf_cell2.out", "w");
 	fout3 = fopen("idf_cell3.out", "w");
@@ -111,11 +121,16 @@ DEFINE_INIT(idf_cells, domain)
 	
 	for (i = 0; i<9999; i++)
 		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, UC_cell_index[i][0], UC_cell_centroid[i][0][0], UC_cell_centroid[i][1][0], UC_cell_T[i][0], UC_cell_WX[i][0], UC_cell_index[i][1], UC_cell_centroid[i][0][1], UC_cell_centroid[i][1][1], UC_cell_T[i][1], UC_cell_WX[i][1]);
+	
+	T = 373.15;
+	fprintf(fout0, "T = %g(K) saturated vapor pressure is %g\n", T, psat_h2o(T));
+
 	fclose(fout2);
 	fclose(fout3);
-	//fclose(fout0);
+	fclose(fout0);
 	//fclose(fout1);
 }
+
 
 DEFINE_ADJUST(calc_flux, domain)
 // calculate the flux across the membrane
@@ -125,7 +140,6 @@ DEFINE_ADJUST(calc_flux, domain)
 	Thread *t_FeedInterface, *t_PermInterface;
 	face_t i_face0, i_face1;
 	cell_t i_cell0, i_cell1;
-	real TW[2], XW[2]; // wall temperatures and mass fraction of component 0
 	real loc0[ND_ND], loc1[ND_ND];
 	real coeff = 3.e-7;
 	real mass_flux, heat_flux; 
@@ -138,39 +152,27 @@ DEFINE_ADJUST(calc_flux, domain)
 	t_FeedInterface = Lookup_Thread(domain, 13);
 	t_PermInterface = Lookup_Thread(domain, 14);
 
-	for (i=0; i<9999; i++)
-	//{
-	//	UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
-	//	UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
-	//	UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
-	//	UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
-		fprintf(fout4, "Feed-side wall cell %d temperature %g, permeate-side wall cell %d temperature %g\n", UC_cell_index[i][0], UC_cell_T[i][0], UC_cell_index[i][1], UC_cell_T[i][1]);
-	//}
+	for (i=0; i<9999; i++) // get the T and YI(0) of the wall cells
+	{
+		UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
+		UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
+		UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
+		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
+		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
+		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
+		mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
+		UC_cell_massflux[i] = mass_flux;
+		//fprintf(fout4, "No.%d Permeation flux is %g (kg/m2-s)\n", i, mass_flux);
+		//C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = +mass_flux;
+		//C_UDMI(UC_cell_index[i][1], t_PermFluid, 2) = -mass_flux;
+		if ((UC_cell_index[i][0] == 0) & (UC_cell_index[i][1] == 0)) return;
+	}
 
 	begin_f_loop(i_face0, t_FeedInterface)
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 	}
 	end_f_loop(i_face0, t_FeedInterface)
-
-	//begin_c_loop(i_cell0, t_FeedFluid)
-	//{
-	//	if (C_UDMI(i_cell0, t_FeedFluid, 0) == -1) // the cell is adjacent to the feed-side membrane wall
-	//	{
-	//		TW[0] = C_T(i_cell0, t_FeedFluid); // the component of TW[0] indicates the feed-side temperature of the membrane surface
-	//		XW[0] = C_YI(i_cell0, t_FeedFluid, 0);
-	//		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the coordinate of the cell
-	//		C_UDMI(i_cell0, t_FeedFluid, 1) = TW[0];
-	//	}
-	//}
-	//end_c_loop(i_cell0, t_FeedFluid)
-	//begin_c_loop(i_cell1, t_PermFluid)
-	//	if (C_UDMI(i_cell1, t_PermFluid, 0) == 1) 
-	//	{
-	//		TW[1] = C_T(i_cell1, t_PermFluid); // the component of TW[1] means the permeate-side wall temperature
-	//		C_UDMI(i_cell1, t_PermFluid, 1) = TW[1];
-	//	}
-	//end_c_loop(i_cell1, t_PermFluid)
 
 	fclose(fout4);
 }
