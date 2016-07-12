@@ -1,5 +1,3 @@
-#include "udf.h"
- 
 /*Constants used in psat_h2o to calculate saturation pressure*/
 
 #define PSAT_A 0.01
