@@ -122,33 +122,57 @@ DEFINE_ADJUST(calc_flux, domain)
 // the flux will also convert into the source of the adjacent cell, which will store in C_UDMI(1) for passing to the source term
 {
 	Thread *t_FeedFluid, *t_PermFluid;
+	Thread *t_FeedInterface, *t_PermInterface;
+	face_t i_face0, i_face1;
 	cell_t i_cell0, i_cell1;
 	real TW[2], XW[2]; // wall temperatures and mass fraction of component 0
 	real loc0[ND_ND], loc1[ND_ND];
 	real coeff = 3.e-7;
 	real mass_flux, heat_flux; 
+	int i = 0;
+
+	fout4 = fopen("idf_cell4.out", "w");
 
 	t_FeedFluid = Lookup_Thread(domain, 5);
 	t_PermFluid = Lookup_Thread(domain, 6);
+	t_FeedInterface = Lookup_Thread(domain, 13);
+	t_PermInterface = Lookup_Thread(domain, 14);
 
-	begin_c_loop(i_cell0, t_FeedFluid)
+	for (i=0; i<9999; i++)
 	{
-		if (C_UDMI(i_cell0, t_FeedFluid, 0) == -1) // the cell is adjacent to the feed-side membrane wall
-		{
-			TW[0] = C_T(i_cell0, t_FeedFluid); // the component of TW[0] indicates the feed-side temperature of the membrane surface
-			XW[0] = C_YI(i_cell0, t_FeedFluid, 0);
-			C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the coordinate of the cell
-			C_UDMI(i_cell0, t_FeedFluid, 1) = TW[0];
-		}
+		UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
+		UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
+		UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid);
+		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid);
+		fprintf(fout4, "Feed-side wall cell %d temperature %g, permeate-side wall cell %d temperature %g", UC_cell_index[i][0], UC_cell_T[i][0], UC_cell_index[i][1], UC_cell_T[i][1]);
 	}
-	end_c_loop(i_cell0, t_FeedFluid)
-	begin_c_loop(i_cell1, t_PermFluid)
-		if (C_UDMI(i_cell1, t_PermFluid, 0) == 1) 
-		{
-			TW[1] = C_T(i_cell1, t_PermFluid); // the component of TW[1] means the permeate-side wall temperature
-			C_UDMI(i_cell1, t_PermFluid, 1) = TW[1];
-		}
-	end_c_loop(i_cell1, t_PermFluid)
+
+	begin_f_loop(i_face0, t_FeedInterface)
+	{
+		i_cell0 = F_C0(i_face0, t_FeedInterface);
+	}
+	end_f_loop(i_face0, t_FeedInterface)
+
+	//begin_c_loop(i_cell0, t_FeedFluid)
+	//{
+	//	if (C_UDMI(i_cell0, t_FeedFluid, 0) == -1) // the cell is adjacent to the feed-side membrane wall
+	//	{
+	//		TW[0] = C_T(i_cell0, t_FeedFluid); // the component of TW[0] indicates the feed-side temperature of the membrane surface
+	//		XW[0] = C_YI(i_cell0, t_FeedFluid, 0);
+	//		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the coordinate of the cell
+	//		C_UDMI(i_cell0, t_FeedFluid, 1) = TW[0];
+	//	}
+	//}
+	//end_c_loop(i_cell0, t_FeedFluid)
+	//begin_c_loop(i_cell1, t_PermFluid)
+	//	if (C_UDMI(i_cell1, t_PermFluid, 0) == 1) 
+	//	{
+	//		TW[1] = C_T(i_cell1, t_PermFluid); // the component of TW[1] means the permeate-side wall temperature
+	//		C_UDMI(i_cell1, t_PermFluid, 1) = TW[1];
+	//	}
+	//end_c_loop(i_cell1, t_PermFluid)
+
+	fclose(fout4);
 }
 
 DEFINE_SOURCE(evap_adj_membr, i_cell, t_cell, dS, eqn)
