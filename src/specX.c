@@ -15,7 +15,7 @@
 #include "mem.h"
 #include "metric.h"
 
-#include "const.h"
+#include "consts.h"
 
 // constants for defining the global array
 #define MAXCELLNUM 9999
@@ -71,9 +71,10 @@ double psat_h2o(double tsat)
 
 real MassFlux(real TW0, real TW1, real WW0, real WW1)
 {
-	real result = 0.0;
-	real drv_force = 0.0, resistance = 3.0e-7;
+	real result = 0.;
+	real drv_force = 0., resistance = 0.;
 	drv_force = psat_h2o(TW0)-psat_h2o(TW1);
+	resistance = 1./3.0e-7;
 	result = drv_force/resistance;
 	return result;
 }
@@ -98,7 +99,7 @@ DEFINE_INIT(idf_cells, domain)
 	t_PermFluid = Lookup_Thread(domain, 6);
 	t_FeedInterface = Lookup_Thread(domain, 13);
 	t_PermInterface = Lookup_Thread(domain, 14);
-	fout0 = fopen("idf_cells0.out", "w");
+	//fout0 = fopen("idf_cells0.out", "w");
 	//fout1 = fopen("idf_cells1.out", "w");
 	fout2 = fopen("idf_cell2.out", "w");
 	fout3 = fopen("idf_cell3.out", "w");
@@ -107,12 +108,12 @@ DEFINE_INIT(idf_cells, domain)
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the cell
+		C_UDMI(i_cell0, t_FeedFluid, 0) = +1; // mark the wall cells as +1, and others as 0 (no modification)
 		UC_cell_index[gid][0] = i_cell0; // store the index of feed-side wall cell
 		UC_cell_centroid[gid][0][0] = loc0[0];
 		UC_cell_centroid[gid][1][0] = loc0[1];
 		UC_cell_T[gid][0] = C_T(i_cell0, t_FeedFluid);
-		UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
+		//UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
 		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
 		{
 			i_cell1 = F_C0(i_face1, t_PermInterface);
@@ -125,7 +126,7 @@ DEFINE_INIT(idf_cells, domain)
 				UC_cell_centroid[gid][0][1] = loc1[0];
 				UC_cell_centroid[gid][1][1] = loc1[1];
 				UC_cell_T[gid][1] = C_T(i_cell1, t_PermFluid);
-				UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0);
+				//UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0); // it'll lead to the error of ACCESS_VIOLATION if the domain is not a mixture
 			}
 		}
 		end_f_loop(i_face1, t_PermInterface)
@@ -157,12 +158,12 @@ DEFINE_INIT(idf_cells, domain)
 	for (i = 0; i<9999; i++)
 		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, UC_cell_index[i][0], UC_cell_centroid[i][0][0], UC_cell_centroid[i][1][0], UC_cell_T[i][0], UC_cell_WX[i][0], UC_cell_index[i][1], UC_cell_centroid[i][0][1], UC_cell_centroid[i][1][1], UC_cell_T[i][1], UC_cell_WX[i][1]);
 	
-	temp = 353.15;
-	fprintf(fout0, "T = %g (K) saturated vapor pressure is %g (Pa)\n", temp, psat_h2o(temp));
+	//temp = 353.15;
+	//fprintf(fout0, "T = %g (K) saturated vapor pressure is %g (Pa)\n", temp, psat_h2o(temp));
 
 	fclose(fout2);
 	fclose(fout3);
-	fclose(fout0);
+	//fclose(fout0);
 	//fclose(fout1);
 }
 
@@ -180,7 +181,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	real mass_flux, heat_flux; 
 	int i = 0;
 
-	fout4 = fopen("idf_cell4.out", "w");
+	//fout4 = fopen("idf_cell4.out", "w");
 
 	t_FeedFluid = Lookup_Thread(domain, 5);
 	t_PermFluid = Lookup_Thread(domain, 6);
@@ -191,31 +192,25 @@ DEFINE_ADJUST(calc_flux, domain)
 	{
 		UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
 		UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
-		UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
-		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
+		//UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
+		//UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
 		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
 		mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
 		UC_cell_massflux[i] = mass_flux;
-		//fprintf(fout4, "No.%d Permeation flux is %g (kg/m2-s)\n", i, mass_flux);
-		//C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = +mass_flux;
-		//C_UDMI(UC_cell_index[i][1], t_PermFluid, 2) = -mass_flux;
+		//fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux is %g (kg/m2-s)\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
+		C_UDMI(UC_cell_index[i][1], t_PermFluid, 2) = +mass_flux;
 		if ((UC_cell_index[i][0] == 0) & (UC_cell_index[i][1] == 0)) return;
 	}
-
-	begin_f_loop(i_face0, t_FeedInterface)
-	{
-		i_cell0 = F_C0(i_face0, t_FeedInterface);
-	}
-	end_f_loop(i_face0, t_FeedInterface)
-
-	fclose(fout4);
+	//fclose(fout4);
 }
 
-DEFINE_SOURCE(evap_adj_membr, i_cell, t_cell, dS, eqn)
+DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 {
 	real source; // returning result
 
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2); // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
 	source = C_UDMI(i_cell, t_cell, 0)*.01;
   dS[eqn] = 0.;
 
