@@ -69,6 +69,12 @@ double psat_h2o(double tsat)
  return psat;
 }
 
+real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl
+{
+	real result = 0.;
+	result = .27;
+	return result;
+}
 real MassFlux(real TW0, real TW1, real WW0, real WW1)
 {
 	real result = 0.;
@@ -104,6 +110,13 @@ DEFINE_INIT(idf_cells, domain)
 	fout2 = fopen("idf_cell2.out", "w");
 	fout3 = fopen("idf_cell3.out", "w");
 
+	if(!Data_Valid_P()) 
+	{
+		Message("[idf_cells] Some accessing variables have not been allocated.\n");
+		Message("[idf_cells] The wall cells have not been identified yet.\n");
+		return;
+	}
+
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
@@ -113,7 +126,7 @@ DEFINE_INIT(idf_cells, domain)
 		UC_cell_centroid[gid][0][0] = loc0[0];
 		UC_cell_centroid[gid][1][0] = loc0[1];
 		UC_cell_T[gid][0] = C_T(i_cell0, t_FeedFluid);
-		//UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
+		UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
 		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
 		{
 			i_cell1 = F_C0(i_face1, t_PermInterface);
@@ -126,7 +139,7 @@ DEFINE_INIT(idf_cells, domain)
 				UC_cell_centroid[gid][0][1] = loc1[0];
 				UC_cell_centroid[gid][1][1] = loc1[1];
 				UC_cell_T[gid][1] = C_T(i_cell1, t_PermFluid);
-				//UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0); // it'll lead to the error of ACCESS_VIOLATION if the domain is not a mixture
+				UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0); // it'll lead to the error of ACCESS_VIOLATION if the domain is not a mixture
 			}
 		}
 		end_f_loop(i_face1, t_PermInterface)
@@ -208,10 +221,22 @@ DEFINE_ADJUST(calc_flux, domain)
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 {
+	real conc, temp;
 	real source; // returning result
 
-	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2); // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
-	source = C_UDMI(i_cell, t_cell, 0)*.01;
+	conc = 1.-C_YI(i_cell, t_cell, 0); // the mass fraction of NaCl
+	temp = C_T(i_cell, t_cell);
+	if (conc > SatConc(temp)) // calculation for the solution under saturation
+	{
+		Message("[mass_source] The solution has the saturated concentration.\n");
+		source = 0.;
+		return source;
+	}
+	else
+	{
+		source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2); // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+		source = C_UDMI(i_cell, t_cell, 0)*(-1.);
+	}
   dS[eqn] = 0.;
 
   return source;
