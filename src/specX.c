@@ -81,7 +81,7 @@ real MassFlux(real TW0, real TW1, real WW0, real WW1)
 	real drv_force = 0., resistance = 0.;
 	drv_force = psat_h2o(TW0)-psat_h2o(TW1);
 	resistance = 1./3.0e-7;
-	result = drv_force/resistance;
+	result = drv_force/resistance/3.6e+3; // use SI unit
 	return result;
 }
 
@@ -110,12 +110,12 @@ DEFINE_INIT(idf_cells, domain)
 	fout2 = fopen("idf_cell2.out", "w");
 	fout3 = fopen("idf_cell3.out", "w");
 
-	if(!Data_Valid_P()) 
-	{
-		Message("[idf_cells] Some accessing variables have not been allocated.\n");
-		Message("[idf_cells] The wall cells have not been identified yet.\n");
-		return;
-	}
+	//if(!Data_Valid_P()) 
+	//{
+	//	Message("\n[idf_cells] Some accessing variables have not been allocated.\n");
+	//	Message("[idf_cells] The wall cells have not been identified yet.\n");
+	//	return;
+	//}
 
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
@@ -194,7 +194,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	real mass_flux, heat_flux; 
 	int i = 0;
 
-	//fout4 = fopen("idf_cell4.out", "w");
+	fout4 = fopen("idf_cell4.out", "w");
 
 	t_FeedFluid = Lookup_Thread(domain, 5);
 	t_PermFluid = Lookup_Thread(domain, 6);
@@ -211,12 +211,12 @@ DEFINE_ADJUST(calc_flux, domain)
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
 		mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
 		UC_cell_massflux[i] = mass_flux;
-		//fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux is %g (kg/m2-s)\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux is %g (kg/m2-s)\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
 		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
 		C_UDMI(UC_cell_index[i][1], t_PermFluid, 2) = +mass_flux;
 		if ((UC_cell_index[i][0] == 0) & (UC_cell_index[i][1] == 0)) return;
 	}
-	//fclose(fout4);
+	fclose(fout4);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
@@ -228,14 +228,11 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 	temp = C_T(i_cell, t_cell);
 	if (conc > SatConc(temp)) // calculation for the solution under saturation
 	{
-		Message("[mass_source] The solution has the saturated concentration.\n");
 		source = 0.;
-		return source;
 	}
 	else
 	{
-		source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2); // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
-		source = C_UDMI(i_cell, t_cell, 0)*(-1.);
+		source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
 	}
   dS[eqn] = 0.;
 
