@@ -205,11 +205,18 @@ DEFINE_ADJUST(calc_flux, domain)
 	{
 		UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
 		UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
-		//UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
-		//UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
+		UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
+		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
 		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
-		mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
+		if (UC_cell_WX[i][0] > (1.-SatConc(UC_cell_T[i][0]))) // calculate the heat and mass tranfer across the membrane only if the concentration is below the saturation
+		{
+			mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
+		}
+		else
+		{
+			mass_flux = .0;
+		}
 		UC_cell_massflux[i] = mass_flux;
 		fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux is %g (kg/m2-s)\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
 		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
@@ -221,19 +228,19 @@ DEFINE_ADJUST(calc_flux, domain)
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 {
-	real conc, temp;
+	//real conc, temp;
 	real source; // returning result
 
-	conc = 1.-C_YI(i_cell, t_cell, 0); // the mass fraction of NaCl
-	temp = C_T(i_cell, t_cell);
-	if (conc > SatConc(temp)) // calculation for the solution under saturation
-	{
-		source = 0.;
-	}
-	else
-	{
+	//conc = 1.-C_YI(i_cell, t_cell, 0); // the mass fraction of NaCl
+	//temp = C_T(i_cell, t_cell);
+	//if (conc > SatConc(temp)) // calculation for the solution under saturation
+	//{
+	//	source = 0.;
+	//}
+	//else
+	//{
 		source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
-	}
+	//}
   dS[eqn] = 0.;
 
   return source;
