@@ -49,17 +49,18 @@ real ThermCond_Maxwell(real temp, real porosity, int opt)
 	real kappa[2], beta;
 	real const A[4] = {5.769, 5.769, 12.5, 4.167};
 	real const B[4] = {0.9144, 8.914, -23.51, 1.452};
-	int const solid = 0, gas = 1;
-	int const PVDF = 0, PTFE = 1, PP = 2, PES = 3;
+	const int solid = 0, gas = 1;
+	const int PVDF = 0, PTFE = 1, PP = 2, PES = 3;
 	int i = 0;
-	kappa[solid] = 1.5e-3*fsqrt(temp); // the thermal conductivity of trapped air and steam by Jonsson [30]
+	kappa[solid] = 1.5e-3*sqrt(temp); // the thermal conductivity of trapped air and steam by Jonsson [30]
 	kappa[solid] = 2.72e-3+7.77e-5*temp; // correlated by Bahmanyar [36]
-	switch(opt)
-		case PVDF: i = PVDF; break;
-		case PTFE: i = PTFE; break;
-		case PP: i = PP; break;
-		case PES: i = PES; break;
-		default: Message("\n Function: ThermCond_Maxwell() has a wrong input argument of opt \n")
+	switch(opt){
+		case 0: i = PVDF; break;
+		case 1: i = PTFE; break;
+		case 2: i = PP; break;
+		case 3: i = PES; break;
+		default: Message("\n Function: ThermCond_Maxwell() has a wrong input argument of opt \n");
+	}
 	kappa[gas] = A[i]*1.e-4*temp+B[i]*1.e-2;
 	beta = (kappa[solid]-kappa[gas])/(kappa[solid]+2.*kappa[gas]);
 	result = kappa[gas]*(1.+2.*beta*(1.-porosity))/(1.-beta*(1.-porosity));
