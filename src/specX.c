@@ -75,13 +75,33 @@ real SatConc(real t) // saturated concentration for given temperature in term of
 	result = .27;
 	return result;
 }
+
+real LatentHeat(real t) // latent heat for given temperature (K)
+{
+	real result = 0.;
+	result = 2.4e+6; // use SI unit (J/kg)
+	return result;
+}
+
 real MassFlux(real TW0, real TW1, real WW0, real WW1)
 {
 	real result = 0.;
 	real drv_force = 0., resistance = 0.;
 	drv_force = psat_h2o(TW0)-psat_h2o(TW1);
 	resistance = 1./3.0e-7;
-	result = drv_force/resistance/3.6e+3; // use SI unit
+	result = drv_force/resistance/3.6e+3; // use SI unit (kg/m2-s)
+	return result;
+}
+
+real HeatFlux(real TW0, real TW1, real mass_flux) // if TW0 > TW1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
+{
+	real latent_heat = 0., membr_thk = 1.5e-4, membr_cond = 0.6;
+	real heat_flux_0 = 0., heat_flux_1 = 0.;
+	real result = 0.;
+	latent_heat = LatentHeat(.5*(TW0+TW1)); // in the unit of (J/kg)
+	heat_flux_0 = latent_heat*mass_flux;
+	heat_flux_1 = membr_cond/membr_thk*(TW0-TW1);
+	result = heat_flux_0+heat_flux_1; // (W/m2)
 	return result;
 }
 
@@ -121,7 +141,7 @@ DEFINE_INIT(idf_cells, domain)
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		C_UDMI(i_cell0, t_FeedFluid, 0) = +1; // mark the wall cells as +1, and others as 0 (no modification)
+		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
 		UC_cell_index[gid][0] = i_cell0; // store the index of feed-side wall cell
 		UC_cell_centroid[gid][0][0] = loc0[0];
 		UC_cell_centroid[gid][1][0] = loc0[1];
@@ -190,7 +210,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	face_t i_face0, i_face1;
 	cell_t i_cell0, i_cell1;
 	real loc0[ND_ND], loc1[ND_ND];
-	real coeff = 3.e-7;
+	//real coeff = 3.e-7;
 	real mass_flux, heat_flux; 
 	int i = 0;
 
@@ -209,7 +229,7 @@ DEFINE_ADJUST(calc_flux, domain)
 		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
 		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
-		if (UC_cell_WX[i][0] > (1.-SatConc(UC_cell_T[i][0]))) // calculate the heat and mass tranfer across the membrane only if the concentration is below the saturation
+		if (UC_cell_WX[i][0] > (1.-SatConc(UC_cell_T[i][0]))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		{
 			mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
 		}
@@ -218,7 +238,10 @@ DEFINE_ADJUST(calc_flux, domain)
 			mass_flux = .0;
 		}
 		UC_cell_massflux[i] = mass_flux;
-		fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux is %g (kg/m2-s)\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		heat_flux = HeatFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_massflux[i]); // calculate the heat transfer across the membrane
+		fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux and heat flux are %g (kg/m2-s) and %g (J/m2-s) respectively.\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 1) = -heat_flux; // store the heat flux in the UDMI(1)
+		C_UDMI(UC_cell_index[i][1], t_PermFluid, 1) = +heat_flux;
 		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
 		C_UDMI(UC_cell_index[i][1], t_PermFluid, 2) = +mass_flux;
 		if ((UC_cell_index[i][0] == 0) & (UC_cell_index[i][1] == 0)) return;
@@ -228,20 +251,17 @@ DEFINE_ADJUST(calc_flux, domain)
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 {
-	//real conc, temp;
 	real source; // returning result
-
-	//conc = 1.-C_YI(i_cell, t_cell, 0); // the mass fraction of NaCl
-	//temp = C_T(i_cell, t_cell);
-	//if (conc > SatConc(temp)) // calculation for the solution under saturation
-	//{
-	//	source = 0.;
-	//}
-	//else
-	//{
-		source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
-	//}
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
   dS[eqn] = 0.;
+  return source;
+}
 
+DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
+{
+	real source; // returning result
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1);
+  dS[eqn] = 0.;
   return source;
 }
