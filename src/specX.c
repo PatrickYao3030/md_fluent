@@ -37,37 +37,37 @@ int gid = 0;
 //	real centroid[ND_ND];
 //} WallCells[999], UCCell;
 
-double psat_h2o(double tsat)
-/*                */
-/* Computes saturation pressure of water vapor     */
-/* as function of temperature            */
-/* Equation is taken from THERMODYNAMIC PROPERTIES IN SI, */
-/* by Reynolds, 1979                  */
-/* Returns pressure in PASCALS, given temperature in KELVIN */
-{
- int i;
- double var1,sum1,ans1,psat;
- double constants[8]={-7.4192420, 2.97221E-1, -1.155286E-1,
-    8.68563E-3, 1.094098E-3, -4.39993E-3, 2.520658E-3, -5.218684E-4}; 
-
- /* var1 is an expression that is used in the summation loop */
- var1 = PSAT_A*(tsat-PSAT_TP);
-
- /* Compute summation loop */
- i = 0;
- sum1 = 0.0;
- while (i < C_LOOP){
-     sum1+=constants[i]*pow(var1,i);
-     ++i;
- }
- ans1 = sum1*(H2O_TC/tsat-1.0);
-
- /* compute exponential to determine result */
- /* psat has units of Pascals     */
-
- psat = H2O_PC*exp(ans1);
- return psat;
-}
+//double psat_h2o(double tsat)
+///*                */
+///* Computes saturation pressure of water vapor     */
+///* as function of temperature            */
+///* Equation is taken from THERMODYNAMIC PROPERTIES IN SI, */
+///* by Reynolds, 1979                  */
+///* Returns pressure in PASCALS, given temperature in KELVIN */
+//{
+// int i;
+// double var1,sum1,ans1,psat;
+// double constants[8]={-7.4192420, 2.97221E-1, -1.155286E-1,
+//    8.68563E-3, 1.094098E-3, -4.39993E-3, 2.520658E-3, -5.218684E-4}; 
+//
+// /* var1 is an expression that is used in the summation loop */
+// var1 = PSAT_A*(tsat-PSAT_TP);
+//
+// /* Compute summation loop */
+// i = 0;
+// sum1 = 0.0;
+// while (i < C_LOOP){
+//     sum1+=constants[i]*pow(var1,i);
+//     ++i;
+// }
+// ans1 = sum1*(H2O_TC/tsat-1.0);
+//
+// /* compute exponential to determine result */
+// /* psat has units of Pascals     */
+//
+// psat = H2O_PC*exp(ans1);
+// return psat;
+//}
 
 real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl
 {
@@ -85,6 +85,7 @@ real LatentHeat(real t) // latent heat for given temperature (K)
 
 real MassFlux(real TW0, real TW1, real WW0, real WW1)
 {
+	extern real psat_h2o();
 	real result = 0.;
 	real drv_force = 0., resistance = 0.;
 	drv_force = psat_h2o(TW0)-psat_h2o(TW1);
@@ -203,9 +204,11 @@ DEFINE_INIT(idf_cells, domain)
 DEFINE_ON_DEMAND(testSubInvoke)
 {
 	extern real ThermCond_Maxwell();
+	extern real psat_h2o();
 	real km = 0., tm = 333.15, porosty = .7;
 	km = ThermCond_Maxwell(tm, porosty, 1);
 	Message("\nThe membrane thermal conductivity is %g (W/m-K).\n", km);
+	Message("\nThe saturated vapor pressure is %g (Pa) for given temperature of %g (K).", psat_h2o(tm), tm);
 }
 
 DEFINE_ADJUST(calc_flux, domain)
