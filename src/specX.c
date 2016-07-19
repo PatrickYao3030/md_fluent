@@ -200,6 +200,13 @@ DEFINE_INIT(idf_cells, domain)
 	//fclose(fout1);
 }
 
+DEFINE_ON_DEMAND(testSubInvoke)
+{
+	extern real ThermCond_Maxwell;
+	real km = 0., tm = 333.15, porosty = .7;
+	km = ThermCond_Maxwell(tm, porosty, 1);
+	Message("\nThe membrane thermal conductivity is %g (W/m-K).\n", km);
+}
 
 DEFINE_ADJUST(calc_flux, domain)
 // calculate the flux across the membrane
