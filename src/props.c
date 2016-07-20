@@ -63,3 +63,16 @@ real ThermCond_Maxwell(real temp, real porosity, int opt)
 	result = kappa[gas]*(1.+2.*beta*(1.-porosity))/(1.-beta*(1.-porosity));
 	return result;
 }
+real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl
+{
+	real result = 0.;
+	result = .27;
+	return result;
+}
+
+real LatentHeat(real t) // latent heat for given temperature (K)
+{
+	real result = 0.;
+	result = 2.4e+6; // use SI unit (J/kg)
+	return result;
+}

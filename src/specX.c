@@ -29,59 +29,8 @@ real UC_cell_T[MAXCELLNUM][2]; // temperature
 real UC_cell_WX[MAXCELLNUM][2]; // mass fraction of solute
 real UC_cell_massflux[MAXCELLNUM]; // transmembrane mass flux toward the permeate
 int gid = 0;
-
-//struct CellInfo
-//{
-//	int seq;
-//	int index;
-//	real centroid[ND_ND];
-//} WallCells[999], UCCell;
-
-//double psat_h2o(double tsat)
-///*                */
-///* Computes saturation pressure of water vapor     */
-///* as function of temperature            */
-///* Equation is taken from THERMODYNAMIC PROPERTIES IN SI, */
-///* by Reynolds, 1979                  */
-///* Returns pressure in PASCALS, given temperature in KELVIN */
-//{
-// int i;
-// double var1,sum1,ans1,psat;
-// double constants[8]={-7.4192420, 2.97221E-1, -1.155286E-1,
-//    8.68563E-3, 1.094098E-3, -4.39993E-3, 2.520658E-3, -5.218684E-4}; 
-//
-// /* var1 is an expression that is used in the summation loop */
-// var1 = PSAT_A*(tsat-PSAT_TP);
-//
-// /* Compute summation loop */
-// i = 0;
-// sum1 = 0.0;
-// while (i < C_LOOP){
-//     sum1+=constants[i]*pow(var1,i);
-//     ++i;
-// }
-// ans1 = sum1*(H2O_TC/tsat-1.0);
-//
-// /* compute exponential to determine result */
-// /* psat has units of Pascals     */
-//
-// psat = H2O_PC*exp(ans1);
-// return psat;
-//}
-
-real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl
-{
-	real result = 0.;
-	result = .27;
-	return result;
-}
-
-real LatentHeat(real t) // latent heat for given temperature (K)
-{
-	real result = 0.;
-	result = 2.4e+6; // use SI unit (J/kg)
-	return result;
-}
+struct PorousMaterials membrane;
+struct CellInfos WallCell[MAXCELLNUM][2];
 
 real MassFlux(real TW0, real TW1, real WW0, real WW1)
 {
@@ -96,6 +45,7 @@ real MassFlux(real TW0, real TW1, real WW0, real WW1)
 
 real HeatFlux(real TW0, real TW1, real mass_flux) // if TW0 > TW1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
 {
+	extern real LatentHeat();
 	real latent_heat = 0., membr_thk = 1.5e-4, membr_cond = 0.6;
 	real heat_flux_0 = 0., heat_flux_1 = 0.;
 	real result = 0.;
@@ -215,6 +165,7 @@ DEFINE_ADJUST(calc_flux, domain)
 // calculate the flux across the membrane
 // the flux will also convert into the source of the adjacent cell, which will store in C_UDMI(1) for passing to the source term
 {
+	extern real SatConc();
 	Thread *t_FeedFluid, *t_PermFluid;
 	Thread *t_FeedInterface, *t_PermInterface;
 	face_t i_face0, i_face1;
