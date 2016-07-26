@@ -34,29 +34,37 @@ void GetProp_Membrane(real init_temp) // Get the properties of the membrane for 
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
 	membrane.conductivity = ThermCond_Maxwell(init_temp, membrane.porosity, PVDF);
+	membrane.MDcoeff = 3.6e-7;
 }
 
-real MassFlux(real TW0, real TW1, real WW0, real WW1)
+real MassFlux(real tw0, real tw1, real ww0, real ww1)
 {
 	extern real psat_h2o();
 	real result = 0.;
 	real drv_force = 0., resistance = 0.;
-	drv_force = psat_h2o(TW0)-psat_h2o(TW1);
-	resistance = 1./3.0e-7;
-	result = drv_force/resistance/3.6e+3; // use SI unit (kg/m2-s)
+	real avg_temp = 0.;
+	avg_temp = .5*(tw0+tw1);
+	GetProp_Membrane(avg_temp);
+	drv_force = psat_h2o(tw0)-psat_h2o(tw1);
+	resistance = 1./membrane.MDcoeff;
+	result = drv_force/resistance; // use SI unit (kg/m2-s)
 	return result;
 }
 
-real HeatFlux(real TW0, real TW1, real mass_flux) // if TW0 > TW1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
+real HeatFlux(real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
 {
 	extern real LatentHeat();
-	real latent_heat = 0., membr_thk = 1.5e-4, membr_cond = 0.6;
+	real avg_temp = 0., diff_temp = 0.;
+	real latent_heat = 0.;
 	real heat_flux_0 = 0., heat_flux_1 = 0.;
 	real result = 0.;
-	latent_heat = LatentHeat(.5*(TW0+TW1)); // in the unit of (J/kg)
-	heat_flux_0 = latent_heat*mass_flux;
-	heat_flux_1 = membr_cond/membr_thk*(TW0-TW1);
-	result = heat_flux_0+heat_flux_1; // (W/m2)
+	avg_temp = .5*(tw0+tw1);
+	diff_temp = tw0-tw1;
+	GetProp_Membrane(avg_temp);
+	latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
+	heat_flux_0 = latent_heat*mass_flux; // latent heat flux
+	heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
+	result = heat_flux_0; // (W/m2) consider the latent heat flux only
 	return result;
 }
 
@@ -74,12 +82,12 @@ DEFINE_INIT(idf_cells, domain)
 	int i = 0;
 	real temp = 0.0;
 
-	d_feed = Get_Domain(1);
-	d_perm = Get_Domain(2);
-	t_FeedFluid = Lookup_Thread(domain, 5);
-	t_PermFluid = Lookup_Thread(domain, 6);
-	t_FeedInterface = Lookup_Thread(domain, 13);
-	t_PermInterface = Lookup_Thread(domain, 14);
+	//d_feed = Get_Domain(32);
+	//d_perm = Get_Domain(33);
+	t_FeedFluid = Lookup_Thread(domain, 34);
+	t_PermFluid = Lookup_Thread(domain, 35);
+	t_FeedInterface = Lookup_Thread(domain, 30);
+	t_PermInterface = Lookup_Thread(domain, 2);
 	//fout0 = fopen("idf_cells0.out", "w");
 	//fout1 = fopen("idf_cells1.out", "w");
 	fout2 = fopen("idf_cell2.out", "w");
@@ -155,14 +163,22 @@ DEFINE_INIT(idf_cells, domain)
 	//fclose(fout1);
 }
 
-DEFINE_ON_DEMAND(testSubInvoke)
+DEFINE_ON_DEMAND(testGetDomain)
 {
-	extern real ThermCond_Maxwell();
-	extern real psat_h2o();
-	real km = 0., tm = 333.15, porosty = .7;
-	km = ThermCond_Maxwell(tm, porosty, 1);
-	Message("\nThe membrane thermal conductivity is %g (W/m-K).\n", km);
-	Message("\nThe saturated vapor pressure is %g (Pa) for given temperature of %g (K).", psat_h2o(tm), tm);
+	Domain *d_feed = Get_Domain(32);
+	Domain *d_perm = Get_Domain(33);
+	Domain *domain = Get_Domain(1);
+	Thread *t_FeedFluid = Lookup_Thread(domain, 34);
+	Thread *t_PermFluid = Lookup_Thread(domain, 35);
+	Thread *t_FeedInterface = Lookup_Thread(domain, 30);
+	Thread *t_PermInterface = Lookup_Thread(domain, 2);
+	//extern real ThermCond_Maxwell();
+	//extern real psat_h2o();
+	//real km = 0., tm = 333.15, porosty = .7;
+	//km = ThermCond_Maxwell(tm, porosty, 1);
+	//Message("\nThe membrane thermal conductivity is %g (W/m-K).\n", km);
+	//Message("\nThe saturated vapor pressure is %g (Pa) for given temperature of %g (K).", psat_h2o(tm), tm);
+
 }
 
 DEFINE_ADJUST(calc_flux, domain)
@@ -181,10 +197,10 @@ DEFINE_ADJUST(calc_flux, domain)
 
 	fout4 = fopen("idf_cell4.out", "w");
 
-	t_FeedFluid = Lookup_Thread(domain, 5);
-	t_PermFluid = Lookup_Thread(domain, 6);
-	t_FeedInterface = Lookup_Thread(domain, 13);
-	t_PermInterface = Lookup_Thread(domain, 14);
+	t_FeedFluid = Lookup_Thread(domain, 34);
+	t_PermFluid = Lookup_Thread(domain, 35);
+	t_FeedInterface = Lookup_Thread(domain, 30);
+	t_PermInterface = Lookup_Thread(domain, 2);
 
 	for (i=0; i<9999; i++) // get the T and YI(0) of the wall cells
 	{

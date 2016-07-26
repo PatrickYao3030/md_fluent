@@ -12,6 +12,7 @@ struct PorousMaterials{
 	real porosity;
 	real tortuosity;
 	real conductivity;
+	real MDcoeff;
 };
 struct Components{
 	real water;
