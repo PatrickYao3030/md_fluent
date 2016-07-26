@@ -1,4 +1,5 @@
 #include "udf.h"
+#include "consts.h"
 /*Constants used in psat_h2o to calculate saturation pressure*/
 #define PSAT_A 0.01
 #define PSAT_TP 338.15
@@ -46,11 +47,9 @@ real ThermCond_Maxwell(real temp, real porosity, int opt)
 	real kappa[2], beta;
 	real const A[4] = {5.769, 5.769, 12.5, 4.167};
 	real const B[4] = {0.9144, 8.914, -23.51, 1.452};
-	const int solid = 0, gas = 1;
-	const int PVDF = 0, PTFE = 1, PP = 2, PES = 3;
 	int i = 0;
-	kappa[gas] = 1.5e-3*sqrt(temp); // the thermal conductivity of trapped air and steam by Jonsson [30]
-	kappa[gas] = 2.72e-3+7.77e-5*temp; // correlated by Bahmanyar [36]
+	kappa[GAS] = 1.5e-3*sqrt(temp); // the thermal conductivity of trapped air and steam by Jonsson [30]
+	kappa[GAS] = 2.72e-3+7.77e-5*temp; // correlated by Bahmanyar [36]
 	switch(opt){
 		case 0: i = PVDF; break;
 		case 1: i = PTFE; break;
@@ -58,9 +57,9 @@ real ThermCond_Maxwell(real temp, real porosity, int opt)
 		case 3: i = PES; break;
 		default: Message("\n Function: ThermCond_Maxwell() has a wrong input argument of opt \n");
 	}
-	kappa[solid] = A[i]*1.e-4*temp+B[i]*1.e-2;
-	beta = (kappa[solid]-kappa[gas])/(kappa[solid]+2.*kappa[gas]);
-	result = kappa[gas]*(1.+2.*beta*(1.-porosity))/(1.-beta*(1.-porosity));
+	kappa[SOLID] = A[i]*1.e-4*temp+B[i]*1.e-2;
+	beta = (kappa[SOLID]-kappa[GAS])/(kappa[SOLID]+2.*kappa[GAS]);
+	result = kappa[GAS]*(1.+2.*beta*(1.-porosity))/(1.-beta*(1.-porosity));
 	return result;
 }
 real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl

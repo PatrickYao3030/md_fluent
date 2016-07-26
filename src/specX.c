@@ -17,10 +17,6 @@
 
 #include "consts.h"
 
-// constants for defining the global array
-#define MAXCELLNUM 9999
-#define EPS 5.0e-4
-
 FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 
 int UC_cell_index[MAXCELLNUM][2]; // index of corresponding thread of cells
@@ -31,6 +27,14 @@ real UC_cell_massflux[MAXCELLNUM]; // transmembrane mass flux toward the permeat
 int gid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
+
+void GetProp_Membrane(real init_temp) // Get the properties of the membrane for the given initial temperature
+{
+	membrane.thickness = 1.5e-6;
+	membrane.porosity = 0.7;
+	membrane.tortuosity = 1.2;
+	membrane.conductivity = ThermCond_Maxwell(init_temp, membrane.porosity, PVDF);
+}
 
 real MassFlux(real TW0, real TW1, real WW0, real WW1)
 {
