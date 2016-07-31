@@ -4,7 +4,7 @@
  It's a preliminary use for membrane distillation.
 ********************************************************************/
 /******************************************************************** 
- Allocate the appropriate number (1) of memory location(s) in the 
+ Allocate the appropriate number (3) of memory location(s) in the 
   User-Defined Memory dialog box in ANSYS FLUENT
 ********************************************************************/
 /******************************************************************** 
@@ -19,11 +19,6 @@
 
 FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 
-int UC_cell_index[MAXCELLNUM][2]; // index of corresponding thread of cells
-real UC_cell_centroid[MAXCELLNUM][ND_ND][2]; // coordinate of centroid
-real UC_cell_T[MAXCELLNUM][2]; // temperature
-real UC_cell_WX[MAXCELLNUM][2]; // mass fraction of solute
-real UC_cell_massflux[MAXCELLNUM]; // transmembrane mass flux toward the permeate
 int gid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
@@ -82,10 +77,8 @@ DEFINE_INIT(idf_cells, domain)
 	int i = 0;
 	real temp = 0.0;
 
-	//d_feed = Get_Domain(32);
-	//d_perm = Get_Domain(33);
-	t_FeedFluid = Lookup_Thread(domain, 34);
-	t_PermFluid = Lookup_Thread(domain, 35);
+	t_FeedFluid = Lookup_Thread(domain, 32);
+	t_PermFluid = Lookup_Thread(domain, 33);
 	t_FeedInterface = Lookup_Thread(domain, 30);
 	t_PermInterface = Lookup_Thread(domain, 2);
 	//fout0 = fopen("idf_cells0.out", "w");
@@ -105,11 +98,11 @@ DEFINE_INIT(idf_cells, domain)
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
-		UC_cell_index[gid][0] = i_cell0; // store the index of feed-side wall cell
-		UC_cell_centroid[gid][0][0] = loc0[0];
-		UC_cell_centroid[gid][1][0] = loc0[1];
-		UC_cell_T[gid][0] = C_T(i_cell0, t_FeedFluid);
-		UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
+		WallCell[gid][0].index = i_cell0;
+		WallCell[gid][0].centroid[0] = loc0[0];
+		WallCell[gid][0].centroid[1] = loc0[1];
+		WallCell[gid][0].temperature = C_T(i_cell0, t_FeedFluid);
+		WallCell[gid][0].massfraction.water = C_YI(i_cell0, t_FeedFluid, 0);
 		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
 		{
 			i_cell1 = F_C0(i_face1, t_PermInterface);
@@ -118,11 +111,11 @@ DEFINE_INIT(idf_cells, domain)
 			{
 				fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
 				C_UDMI(i_cell0, t_FeedFluid, 1) = i_cell1; // store the index of the found cell
-				UC_cell_index[gid][1] = i_cell1; // store the index of permeate-side wall cell
-				UC_cell_centroid[gid][0][1] = loc1[0];
-				UC_cell_centroid[gid][1][1] = loc1[1];
-				UC_cell_T[gid][1] = C_T(i_cell1, t_PermFluid);
-				UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0); // it'll lead to the error of ACCESS_VIOLATION if the domain is not a mixture
+				WallCell[gid][1].index = i_cell1;
+				WallCell[gid][1].centroid[0] = loc1[0];
+				WallCell[gid][1].centroid[1] = loc1[1];
+				WallCell[gid][1].temperature = C_T(i_cell1, t_PermFluid);
+				WallCell[gid][1].massfraction.water = C_YI(i_cell1, t_PermFluid, 0);
 			}
 		}
 		end_f_loop(i_face1, t_PermInterface)
@@ -152,7 +145,7 @@ DEFINE_INIT(idf_cells, domain)
 	end_f_loop(i_face1, t_PermInterface)
 	
 	for (i = 0; i<9999; i++)
-		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, UC_cell_index[i][0], UC_cell_centroid[i][0][0], UC_cell_centroid[i][1][0], UC_cell_T[i][0], UC_cell_WX[i][0], UC_cell_index[i][1], UC_cell_centroid[i][0][1], UC_cell_centroid[i][1][1], UC_cell_T[i][1], UC_cell_WX[i][1]);
+		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, WallCell[i][0].index, WallCell[i][0].centroid[0], WallCell[i][0].centroid[1], WallCell[i][0].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].index, WallCell[i][1].centroid[0], WallCell[i][1].centroid[1], WallCell[i][1].temperature, WallCell[i][1].massfraction.water);
 	
 	//temp = 353.15;
 	//fprintf(fout0, "T = %g (K) saturated vapor pressure is %g (Pa)\n", temp, psat_h2o(temp));
@@ -165,13 +158,60 @@ DEFINE_INIT(idf_cells, domain)
 
 DEFINE_ON_DEMAND(testGetDomain)
 {
-	Domain *d_feed = Get_Domain(32);
-	Domain *d_perm = Get_Domain(33);
+	cell_t i_cell, i_cell0, i_cell1;
+	face_t i_face0, i_face1;
+	Thread *t_cell;
+	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
+	int i = 0;
+	real temp = 0.0;
+
+	//Domain *d_feed = Get_Domain(32);
+	//Domain *d_perm = Get_Domain(33);
 	Domain *domain = Get_Domain(1);
-	Thread *t_FeedFluid = Lookup_Thread(domain, 34);
-	Thread *t_PermFluid = Lookup_Thread(domain, 35);
+	Thread *t_FeedFluid = Lookup_Thread(domain, 32);
+	Thread *t_PermFluid = Lookup_Thread(domain, 33);
 	Thread *t_FeedInterface = Lookup_Thread(domain, 30);
 	Thread *t_PermInterface = Lookup_Thread(domain, 2);
+
+	fout2 = fopen("idf_cell2.out", "w");
+	fout3 = fopen("idf_cell3.out", "w");
+
+	//begin_c_loop(i_cell, t_FeedFluid){
+	//	Message("cell#%d\n", i_cell);
+	//}
+	//end_c_loop(i_cell, t_FeedFluid)
+
+	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
+	{
+		i_cell0 = F_C0(i_face0, t_FeedInterface);
+		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
+		Message("interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
+		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
+		//UC_cell_index[gid][0] = i_cell0; // store the index of feed-side wall cell
+		//UC_cell_centroid[gid][0][0] = loc0[0];
+		//UC_cell_centroid[gid][1][0] = loc0[1];
+		//UC_cell_T[gid][0] = C_T(i_cell0, t_FeedFluid);
+		//UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
+		//begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
+		//{
+		//	i_cell1 = F_C0(i_face1, t_PermInterface);
+		//	C_CENTROID(loc1, i_cell1, t_PermFluid);
+		//	if (fabs(loc0[0]-loc1[0])/loc0[0] < EPS) // In this special case, the pair of wall cells on both sides of membrane are symmetrical
+		//	{
+		//		fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
+		//		C_UDMI(i_cell0, t_FeedFluid, 1) = i_cell1; // store the index of the found cell
+		//		UC_cell_index[gid][1] = i_cell1; // store the index of permeate-side wall cell
+		//		UC_cell_centroid[gid][0][1] = loc1[0];
+		//		UC_cell_centroid[gid][1][1] = loc1[1];
+		//		UC_cell_T[gid][1] = C_T(i_cell1, t_PermFluid);
+		//		UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0); // it'll lead to the error of ACCESS_VIOLATION if the domain is not a mixture
+		//	}
+		//}
+		//end_f_loop(i_face1, t_PermInterface)
+		gid++;
+	}
+	end_f_loop(i_face0, t_FeedInterface)
+
 	//extern real ThermCond_Maxwell();
 	//extern real psat_h2o();
 	//real km = 0., tm = 333.15, porosty = .7;
@@ -197,35 +237,37 @@ DEFINE_ADJUST(calc_flux, domain)
 
 	fout4 = fopen("idf_cell4.out", "w");
 
-	t_FeedFluid = Lookup_Thread(domain, 34);
-	t_PermFluid = Lookup_Thread(domain, 35);
+	t_FeedFluid = Lookup_Thread(domain, 32);
+	t_PermFluid = Lookup_Thread(domain, 33);
 	t_FeedInterface = Lookup_Thread(domain, 30);
 	t_PermInterface = Lookup_Thread(domain, 2);
 
 	for (i=0; i<9999; i++) // get the T and YI(0) of the wall cells
 	{
-		UC_cell_T[i][0] = C_T(UC_cell_index[i][0], t_FeedFluid);
-		UC_cell_T[i][1] = C_T(UC_cell_index[i][1], t_PermFluid);
-		UC_cell_WX[i][0] = C_YI(UC_cell_index[i][0], t_FeedFluid, 0);
-		UC_cell_WX[i][1] = C_YI(UC_cell_index[i][1], t_PermFluid, 0);
+		WallCell[i][0].temperature = C_T(WallCell[i][0].index, t_FeedFluid);
+		WallCell[i][1].temperature = C_T(WallCell[i][1].index, t_PermFluid);
+		WallCell[i][0].massfraction.water = C_YI(WallCell[i][0].index, t_FeedFluid, 0);
+		WallCell[i][1].massfraction.water = C_YI(WallCell[i][1].index, t_PermFluid, 0);
+
 		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
-		if (UC_cell_WX[i][0] > (1.-SatConc(UC_cell_T[i][0]))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
+		//if (UC_cell_WX[i][0] > (1.-SatConc(UC_cell_T[i][0]))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
+		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		{
-			mass_flux = MassFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_WX[i][0], UC_cell_WX[i][1]);
+			mass_flux = MassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
 		}
 		else
 		{
 			mass_flux = .0;
 		}
-		UC_cell_massflux[i] = mass_flux;
-		heat_flux = HeatFlux(UC_cell_T[i][0], UC_cell_T[i][1], UC_cell_massflux[i]); // calculate the heat transfer across the membrane
-		fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux and heat flux are %g (kg/m2-s) and %g (J/m2-s) respectively.\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
-		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 1) = -heat_flux; // store the heat flux in the UDMI(1)
-		C_UDMI(UC_cell_index[i][1], t_PermFluid, 1) = +heat_flux;
-		C_UDMI(UC_cell_index[i][0], t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
-		C_UDMI(UC_cell_index[i][1], t_PermFluid, 2) = +mass_flux;
-		if ((UC_cell_index[i][0] == 0) & (UC_cell_index[i][1] == 0)) return;
+		//UC_cell_massflux[i] = mass_flux;
+		heat_flux = HeatFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
+		//fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux and heat flux are %g (kg/m2-s) and %g (J/m2-s) respectively.\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -heat_flux; // store the heat flux in the UDMI(1)
+		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +heat_flux;
+		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
+		C_UDMI(WallCell[i][1].index, t_PermFluid, 2) = +mass_flux;
+		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
 	}
 	fclose(fout4);
 }
