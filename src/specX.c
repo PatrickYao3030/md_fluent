@@ -4,11 +4,10 @@
  It's a preliminary use for membrane distillation.
 ********************************************************************/
 /******************************************************************** 
- Allocate the appropriate number (3) of memory location(s) in the 
-  User-Defined Memory dialog box in ANSYS FLUENT
-********************************************************************/
-/******************************************************************** 
- The codes are for running in serial only. 
+ Preliminary checklist before use:
+ (1) Run the ANSYS FLUENT in 2-d serial mode
+ (2) Allocate the three User-Defined Memories
+ (3) Set the mixture for both cell zone conditions
 ********************************************************************/
 
 #include "udf.h"
@@ -59,13 +58,19 @@ real HeatFlux(real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux
 	latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
 	heat_flux_0 = latent_heat*mass_flux; // latent heat flux
 	heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
-	result = heat_flux_0; // (W/m2) consider the latent heat flux only
+	result = heat_flux_0; // (W/m2), consider the latent heat flux only
 	return result;
 }
 
 DEFINE_INIT(idf_cells, domain)
-// identify the cells, which are adjacent to both sides of the membrane
-// use C_UDMI(0) to store the identifier, which marks as -1 or 1 for the adjacent cells and 0 (not set) for others 
+/* 
+   [objectives] identify the cell pairs, which are adjacent to both sides of the membrane
+   [methods] 1. get a cell beside the feeding membrane boundary
+	           2. find the corresponding cells with the same x-coordinate
+   [outputs] 1. for all cells, the cell whose C_UDMI(0) = -1 means it belongs to the wall cell of feeding membrane
+                                                          +1 means it belongs to the wall cell of permeating membrane
+						 2. internal variables for recording the identified pairs of wall cells
+*/
 {
 	Domain *d_feed, *d_perm;
 	cell_t i_cell, i_cell0, i_cell1;
@@ -110,7 +115,7 @@ DEFINE_INIT(idf_cells, domain)
 			if (fabs(loc0[0]-loc1[0])/loc0[0] < EPS) // In this special case, the pair of wall cells on both sides of membrane are symmetrical
 			{
 				fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
-				C_UDMI(i_cell0, t_FeedFluid, 1) = i_cell1; // store the index of the found cell
+				//C_UDMI(i_cell0, t_FeedFluid, 1) = i_cell1; // store the index of the found cell
 				WallCell[gid][1].index = i_cell1;
 				WallCell[gid][1].centroid[0] = loc1[0];
 				WallCell[gid][1].centroid[1] = loc1[1];
@@ -136,7 +141,7 @@ DEFINE_INIT(idf_cells, domain)
 			if (fabs(loc1[0]-loc0[0])/loc1[0] < EPS)
 			{
 				fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
-				C_UDMI(i_cell1, t_PermFluid, 1) = i_cell0;
+				//C_UDMI(i_cell1, t_PermFluid, 1) = i_cell0;
 			}
 		}
 		end_f_loop(i_face1, t_PermInterface)
@@ -147,9 +152,6 @@ DEFINE_INIT(idf_cells, domain)
 	for (i = 0; i<9999; i++)
 		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, WallCell[i][0].index, WallCell[i][0].centroid[0], WallCell[i][0].centroid[1], WallCell[i][0].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].index, WallCell[i][1].centroid[0], WallCell[i][1].centroid[1], WallCell[i][1].temperature, WallCell[i][1].massfraction.water);
 	
-	//temp = 353.15;
-	//fprintf(fout0, "T = %g (K) saturated vapor pressure is %g (Pa)\n", temp, psat_h2o(temp));
-
 	fclose(fout2);
 	fclose(fout3);
 	//fclose(fout0);
@@ -222,8 +224,14 @@ DEFINE_ON_DEMAND(testGetDomain)
 }
 
 DEFINE_ADJUST(calc_flux, domain)
-// calculate the flux across the membrane
-// the flux will also convert into the source of the adjacent cell, which will store in C_UDMI(1) for passing to the source term
+/*
+	[objectives] calculate the flux across the membrane
+	[methods] 1. get the temperatures and concentrations of the identified pair of wall cells
+	          2. calculate the permeation flux according to the given temperature and concentration
+						3. calculate the permeative heat flux, here only latent heats are considered while the conjugated conductive heat transfer scheme is used.
+	[outputs] 1 C_UDMI(1) for mass flux
+	          2 C_UDMI(2) for latent heat flux
+*/
 {
 	extern real SatConc();
 	Thread *t_FeedFluid, *t_PermFluid;
@@ -231,7 +239,6 @@ DEFINE_ADJUST(calc_flux, domain)
 	face_t i_face0, i_face1;
 	cell_t i_cell0, i_cell1;
 	real loc0[ND_ND], loc1[ND_ND];
-	//real coeff = 3.e-7;
 	real mass_flux, heat_flux; 
 	int i = 0;
 
@@ -251,7 +258,6 @@ DEFINE_ADJUST(calc_flux, domain)
 
 		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
-		//if (UC_cell_WX[i][0] > (1.-SatConc(UC_cell_T[i][0]))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		{
 			mass_flux = MassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
@@ -260,31 +266,41 @@ DEFINE_ADJUST(calc_flux, domain)
 		{
 			mass_flux = .0;
 		}
-		//UC_cell_massflux[i] = mass_flux;
 		heat_flux = HeatFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		//fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux and heat flux are %g (kg/m2-s) and %g (J/m2-s) respectively.\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
-		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -heat_flux; // store the heat flux in the UDMI(1)
-		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +heat_flux;
-		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -mass_flux; // store the permeation flux in the UDMI(2)
-		C_UDMI(WallCell[i][1].index, t_PermFluid, 2) = +mass_flux;
+		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -mass_flux; // store the permeation flux in the UDMI(1)
+		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +mass_flux;
+		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -heat_flux; // store the heat flux in the UDMI(2)
+		C_UDMI(WallCell[i][1].index, t_PermFluid, 2) = +heat_flux;
 		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
 	}
 	fclose(fout4);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
+/*
+	[objectives] add the term of mass source for wall cells
+	[methods] 1. convert the transmembrane mass transfer into the source term of the wall cell
+	          2. set the mass source for each calculating cell
+	[outputs] the mass source or sink
+*/
 {
 	real source; // returning result
-	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
   dS[eqn] = 0.;
   return source;
 }
 
 DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
+/*
+	[objectives] add the term of latent heat source for wall cells
+	[methods] 1. convert the latent heat transfer into the source term of the wall cell
+	          2. calculate the evaporation and condensation heat of the given cell
+	[outputs] the latent heat source or sink
+*/
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1);
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
   dS[eqn] = 0.;
   return source;
 }
