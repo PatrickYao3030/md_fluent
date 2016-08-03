@@ -22,12 +22,12 @@ int gid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 
-void GetProp_Membrane(real init_temp) // Get the properties of the membrane for the given initial temperature
+void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
 	membrane.thickness = 1.5e-6;
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
-	membrane.conductivity = ThermCond_Maxwell(init_temp, membrane.porosity, PVDF);
+	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
 	membrane.MDcoeff = 3.6e-7;
 }
 
@@ -286,7 +286,7 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
   dS[eqn] = 0.;
   return source;
 }
@@ -294,13 +294,13 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 /*
 	[objectives] add the term of latent heat source for wall cells
-	[methods] 1. convert the latent heat transfer into the source term of the wall cell
+	[methods] 1. convert the latent heat flux into the source term of the wall cell
 	          2. calculate the evaporation and condensation heat of the given cell
 	[outputs] the latent heat source or sink
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3.; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
   dS[eqn] = 0.;
   return source;
 }
