@@ -78,7 +78,6 @@ real LatentHeat(real t) // latent heat for given temperature (K), Drioli, E.and 
 real ThermCond_aq(real t,real c)//thermal conductivity for given temperature(K)and concentration(w%)
 {
 	real result=0.;
-	xmole=18*c/(58.5-40.5*c)
-	result=(0.608+7.46e-4*(t-273.15))*(1-0.98*xmole);
+	result=(0.608+7.46e-4*(t-273.15))*(1-0.98*(18*c/(58.5-40.5*c)));
 	return result;
 }
