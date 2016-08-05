@@ -69,15 +69,15 @@ real SatConc(real t) // saturated concentration for given temperature in term of
 	return result;
 }
 
-real LatentHeat(real t) // latent heat for given temperature (K), Drioli, E.and M. Romano [IECR 40(5): 1277-1300.]
+real LatentHeat(real t) // latent heat in water evaporation/condensation for given temperature (K) in 1 atm, Drioli, E.and M. Romano [IECR 40(5): 1277-1300]
 {
 	real result = 0.;
-	result = 1000*(1.7535*t+2024.3); // use SI unit (J/kg)
+	result = 1.e+3*(1.7535*t+2024.3); // use SI unit (J/kg)
 	return result;
 }
-real ThermCond_aq(real t,real c)//thermal conductivity for given temperature(K)and concentration(w%)
+real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (K) and concentration (w%)
 {
 	real result=0.;
-	result=(0.608+7.46e-4*(t-273.15))*(1-0.98*(18*c/(58.5-40.5*c)));
+	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
 	return result;
 }
