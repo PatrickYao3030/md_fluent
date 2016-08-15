@@ -189,38 +189,9 @@ DEFINE_ON_DEMAND(testGetDomain)
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
 		Message("interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
-		//UC_cell_index[gid][0] = i_cell0; // store the index of feed-side wall cell
-		//UC_cell_centroid[gid][0][0] = loc0[0];
-		//UC_cell_centroid[gid][1][0] = loc0[1];
-		//UC_cell_T[gid][0] = C_T(i_cell0, t_FeedFluid);
-		//UC_cell_WX[gid][0] = C_YI(i_cell0, t_FeedFluid, 0); // NOTE: this sentense is valid only if the mixture mode is used 
-		//begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
-		//{
-		//	i_cell1 = F_C0(i_face1, t_PermInterface);
-		//	C_CENTROID(loc1, i_cell1, t_PermFluid);
-		//	if (fabs(loc0[0]-loc1[0])/loc0[0] < EPS) // In this special case, the pair of wall cells on both sides of membrane are symmetrical
-		//	{
-		//		fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
-		//		C_UDMI(i_cell0, t_FeedFluid, 1) = i_cell1; // store the index of the found cell
-		//		UC_cell_index[gid][1] = i_cell1; // store the index of permeate-side wall cell
-		//		UC_cell_centroid[gid][0][1] = loc1[0];
-		//		UC_cell_centroid[gid][1][1] = loc1[1];
-		//		UC_cell_T[gid][1] = C_T(i_cell1, t_PermFluid);
-		//		UC_cell_WX[gid][1] = C_YI(i_cell1, t_PermFluid, 0); // it'll lead to the error of ACCESS_VIOLATION if the domain is not a mixture
-		//	}
-		//}
-		//end_f_loop(i_face1, t_PermInterface)
 		gid++;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
-
-	//extern real ThermCond_Maxwell();
-	//extern real psat_h2o();
-	//real km = 0., tm = 333.15, porosty = .7;
-	//km = ThermCond_Maxwell(tm, porosty, 1);
-	//Message("\nThe membrane thermal conductivity is %g (W/m-K).\n", km);
-	//Message("\nThe saturated vapor pressure is %g (Pa) for given temperature of %g (K).", psat_h2o(tm), tm);
-
 }
 
 DEFINE_ADJUST(calc_flux, domain)
@@ -255,7 +226,6 @@ DEFINE_ADJUST(calc_flux, domain)
 		WallCell[i][1].temperature = C_T(WallCell[i][1].index, t_PermFluid);
 		WallCell[i][0].massfraction.water = C_YI(WallCell[i][0].index, t_FeedFluid, 0);
 		WallCell[i][1].massfraction.water = C_YI(WallCell[i][1].index, t_PermFluid, 0);
-
 		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
 		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
 		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
@@ -267,7 +237,11 @@ DEFINE_ADJUST(calc_flux, domain)
 			mass_flux = .0;
 		}
 		heat_flux = HeatFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
-		//fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux and heat flux are %g (kg/m2-s) and %g (J/m2-s) respectively.\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		if (WallCell[i][0].temperature < WallCell[i][1].temperature)
+		{
+			Message("[WARNING] The crossed temperature is detected. Temperatures at the feeding and permeating surface are %g and %g respectively.\n", WallCell[i][0].temperature, WallCell[i][1].temperature);
+			Message("Negative flux found as %g (kg/m2-s) and %g (W/m2)\n", mass_flux, heat_flux);
+		}		
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -mass_flux; // store the permeation flux in the UDMI(1)
 		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +mass_flux;
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -heat_flux; // store the heat flux in the UDMI(2)
@@ -286,7 +260,14 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+	if (C_UDMI(i_cell, t_cell, 0) != 0)
+	{
+		source = C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+	}
+	else
+	{
+		source = 0.;
+	}
   dS[eqn] = 0.;
   return source;
 }
@@ -300,7 +281,14 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
+	if (C_UDMI(i_cell, t_cell, 0) != 0)
+	{
+		source = C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
+	}
+	else
+	{
+		source = 0.;
+	}
   dS[eqn] = 0.;
   return source;
 }
