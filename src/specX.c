@@ -28,7 +28,7 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
 	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
-	membrane.MDcoeff = 3.6e-7;
+	membrane.MDcoeff = 2.4e-6;
 }
 
 real MassFlux(real tw0, real tw1, real ww0, real ww1)
@@ -226,8 +226,6 @@ DEFINE_ADJUST(calc_flux, domain)
 		WallCell[i][1].temperature = C_T(WallCell[i][1].index, t_PermFluid);
 		WallCell[i][0].massfraction.water = C_YI(WallCell[i][0].index, t_FeedFluid, 0);
 		WallCell[i][1].massfraction.water = C_YI(WallCell[i][1].index, t_PermFluid, 0);
-		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
-		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
 		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		{
 			mass_flux = MassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
