@@ -62,14 +62,28 @@ real HeatFlux(real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux
 	return result;
 }
 
+real OverheatCheck(real q, real m, real cp, real t0, real t1, real tref) // if the overheat happens, it will return a revised heat flow (either being exothermal or endothermal) 
+{
+	real result = 0.;
+	t1 = q/(m*cp)+t0;  
+	if (q*(t1-tref)>0.) // with the absorbed heat (q>0), the calculated temperature should be lower than the refered one; with the released heat (q<0), t1 > tref
+	{
+		result = m*cp*(tref-t0);
+	}
+	else
+	{
+		result = m*cp*(t1-t0);
+	}
+}
+
 DEFINE_INIT(idf_cells, domain)
 /* 
    [objectives] identify the cell pairs, which are adjacent to both sides of the membrane
-   [methods] 1. get a cell beside the feeding membrane boundary
-	           2. find the corresponding cells with the same x-coordinate
+   [methods] 1. get a cell beside the feeding membrane boundary         
+             2. find the corresponding cells with the same x-coordinate
    [outputs] 1. for all cells, the cell whose C_UDMI(0) = -1 means it belongs to the wall cell of feeding membrane
                                                           +1 means it belongs to the wall cell of permeating membrane
-						 2. internal variables for recording the identified pairs of wall cells
+			 2. internal variables for recording the identified pairs of wall cells
 */
 {
 	Domain *d_feed, *d_perm;
@@ -223,14 +237,19 @@ DEFINE_ON_DEMAND(testGetDomain)
 
 }
 
+DEFINE_ON_DEMAND(testGetVolume)
+{
+}
+
 DEFINE_ADJUST(calc_flux, domain)
 /*
 	[objectives] calculate the flux across the membrane
 	[methods] 1. get the temperatures and concentrations of the identified pair of wall cells
 	          2. calculate the permeation flux according to the given temperature and concentration
-						3. calculate the permeative heat flux, here only latent heats are considered while the conjugated conductive heat transfer scheme is used.
-	[outputs] 1 C_UDMI(1) for mass flux
-	          2 C_UDMI(2) for latent heat flux
+			  3. calculate the permeative heat flux, here only latent heats are considered while the conjugated conductive heat transfer scheme is used
+			  4. if the cell is overheated with the heat flux input, reset the permeation flux and go back to step 2
+	[outputs] 1. C_UDMI(1) for mass flux
+	          2. C_UDMI(2) for latent heat flux
 */
 {
 	extern real SatConc();
@@ -242,7 +261,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	real mass_flux, heat_flux; 
 	int i = 0;
 
-	fout4 = fopen("idf_cell4.out", "w");
+	//fout4 = fopen("idf_cell4.out", "w");
 
 	t_FeedFluid = Lookup_Thread(domain, 32);
 	t_PermFluid = Lookup_Thread(domain, 33);
@@ -256,8 +275,6 @@ DEFINE_ADJUST(calc_flux, domain)
 		WallCell[i][0].massfraction.water = C_YI(WallCell[i][0].index, t_FeedFluid, 0);
 		WallCell[i][1].massfraction.water = C_YI(WallCell[i][1].index, t_PermFluid, 0);
 
-		//fprintf(fout4, "Cell %d T = %g (K) psat(T) = %g (Pa)\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]));
-		//fprintf(fout4, "Feed-side wall cell %d T = %g and sat.P = %g, permeate-side wall cell %d T = %g and sat.P = %g\n", UC_cell_index[i][0], UC_cell_T[i][0], psat_h2o(UC_cell_T[i][0]), UC_cell_index[i][1], UC_cell_T[i][1], psat_h2o(UC_cell_T[i][1]));
 		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		{
 			mass_flux = MassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
@@ -267,14 +284,14 @@ DEFINE_ADJUST(calc_flux, domain)
 			mass_flux = .0;
 		}
 		heat_flux = HeatFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
-		//fprintf(fout4, "No.%d membrane temperatures of feeding and permeating sides are %g and %g respectively, and its permeation flux and heat flux are %g (kg/m2-s) and %g (J/m2-s) respectively.\n", i, UC_cell_T[i][0], UC_cell_T[i][1],  mass_flux);
+		mass_flux = OverheatCheck(); 
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -mass_flux; // store the permeation flux in the UDMI(1)
 		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +mass_flux;
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -heat_flux; // store the heat flux in the UDMI(2)
 		C_UDMI(WallCell[i][1].index, t_PermFluid, 2) = +heat_flux;
 		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
 	}
-	fclose(fout4);
+	//fclose(fout4);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
