@@ -37,12 +37,12 @@ real psat_h2o(real tsat)
  return psat;
 }
 
+real ThermCond_Maxwell(real temp, real porosity, int opt) 
 /* Calculate the thermal conductivity of the membrane for its porosity higher than 60%
 	 with the correlation of Garcia-Payo and lzquierdo-Gil [J Phys D 2004, 37(21): 3008-3016]
 	 which is also commented by Hitsov [Sep Purification Tech 2015, 142: 48-64]
 	 all the following reference numbers are in the review of Hitsov
 */
-real ThermCond_Maxwell(real temp, real porosity, int opt) 
 {
 	real result;
 	real kappa[2], beta;

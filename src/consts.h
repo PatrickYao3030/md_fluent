@@ -6,6 +6,11 @@
 #define PES 3
 #define SOLID 0
 #define GAS 1
+#define id_domain 1
+#define id_FeedFluid 32
+#define id_PermFluid 33
+#define id_FeedInterface 30
+#define id_PermInterface 2
 
 struct PorousMaterials{
 	real thickness;
