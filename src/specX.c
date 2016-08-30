@@ -15,7 +15,11 @@
 #include "metric.h"
 
 #include "consts.h"
-
+#define id_domain 1
+#define id_FeedFluid 32
+#define id_PermFluid 33
+#define id_FeedInterface 30
+#define id_PermInterface 2
 FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 
 int gid = 0;
@@ -82,10 +86,10 @@ DEFINE_INIT(idf_cells, domain)
 	int i = 0;
 	real temp = 0.0;
 
-	t_FeedFluid = Lookup_Thread(domain, 32);
-	t_PermFluid = Lookup_Thread(domain, 33);
-	t_FeedInterface = Lookup_Thread(domain, 30);
-	t_PermInterface = Lookup_Thread(domain, 2);
+	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
+	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
+	t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
+	t_PermInterface = Lookup_Thread(domain, id_PermInterface);
 	//fout0 = fopen("idf_cells0.out", "w");
 	//fout1 = fopen("idf_cells1.out", "w");
 	fout2 = fopen("idf_cell2.out", "w");
@@ -166,18 +170,16 @@ DEFINE_ON_DEMAND(testGetDomain)
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
 	int i = 0;
 	real temp = 0.0;
-
 	//Domain *d_feed = Get_Domain(32);
 	//Domain *d_perm = Get_Domain(33);
-	Domain *domain = Get_Domain(1);
-	Thread *t_FeedFluid = Lookup_Thread(domain, 32);
-	Thread *t_PermFluid = Lookup_Thread(domain, 33);
-	Thread *t_FeedInterface = Lookup_Thread(domain, 30);
-	Thread *t_PermInterface = Lookup_Thread(domain, 2);
+	Domain *domain = Get_Domain(id_domain);
+	Thread *t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
+	Thread *t_PermFluid = Lookup_Thread(domain, id_PermFluid);
+	Thread *t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
+	Thread *t_PermInterface = Lookup_Thread(domain, id_PermInterface);
 
 	fout2 = fopen("idf_cell2.out", "w");
 	fout3 = fopen("idf_cell3.out", "w");
-
 	//begin_c_loop(i_cell, t_FeedFluid){
 	//	Message("cell#%d\n", i_cell);
 	//}
@@ -222,7 +224,26 @@ DEFINE_ON_DEMAND(testGetDomain)
 	//Message("\nThe saturated vapor pressure is %g (Pa) for given temperature of %g (K).", psat_h2o(tm), tm);
 
 }
-
+DEFINE_ON_DEMAND(test_cp)
+/*
+	[objectives] to see if the value of specific heat is right
+	[methods]  get the cell indexand their value of specific heat and mass fraction 
+	[outputs] the cell index, mass fraction and cp
+*/
+{
+	cell_t i_cell;
+	Thread *t_FeedFluid;
+	real cp_forTest, massfraction;
+	Domain *domain = Get_Domain(id_domain);
+	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
+	begin_c_loop(i_cell, t_FeedFluid) 
+	{
+		cp_forTest=C_CP(i_cell,t_FeedFluid);
+		massfraction=C_YI(i_cell,t_FeedFluid,1);
+		Message("cell index %d, specific heat %g, massfraction %g \n",i_cell, cp_forTest, massfraction);
+	}
+	end_c_loop(i_cell,t_FeedFluid);
+}
 DEFINE_ADJUST(calc_flux, domain)
 /*
 	[objectives] calculate the flux across the membrane
@@ -244,10 +265,10 @@ DEFINE_ADJUST(calc_flux, domain)
 
 	fout4 = fopen("idf_cell4.out", "w");
 
-	t_FeedFluid = Lookup_Thread(domain, 32);
-	t_PermFluid = Lookup_Thread(domain, 33);
-	t_FeedInterface = Lookup_Thread(domain, 30);
-	t_PermInterface = Lookup_Thread(domain, 2);
+	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
+	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
+	t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
+	t_PermInterface = Lookup_Thread(domain, id_PermInterface);
 
 	for (i=0; i<9999; i++) // get the T and YI(0) of the wall cells
 	{
