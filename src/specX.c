@@ -28,7 +28,7 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
 	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
-	membrane.MDcoeff = 3.6e-7;
+	membrane.MDcoeff = 2.4e-6;
 }
 
 real MassFlux(real tw0, real tw1, real ww0, real ww1)
