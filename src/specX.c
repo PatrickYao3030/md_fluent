@@ -62,33 +62,23 @@ real HeatFlux(real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux
 	return result;
 }
 
-real HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
+int HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
 {
 	real q = 0., t = 0.;
-	real result = 0.;
+	int result = 0;
 	real A = 0.5e-3;
 	q = JH*A;
 	t = t0-q/(m*cp);  
 	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
 	{
-		result = m*cp*(t0-tref)/A;
-		if (id_message > 1) Message("[Overheat warning] The heat flux of %g is revised to %g.\n", JH, result);
+		result = 0;
+		if (id_message > 1) Message("[Overheat warning] The heat flux of %g should be revised.\n", JH);
 	}
 	else
 	{
-		result = m*cp*(t0-t)/A;
+		result = 1;
 	}
 	return result;
-}
-
-real MassFluxCheck(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
-{
-	extern real LatentHeat();
-	real latent_heat = 0., tm = 0., JM = 0.;
-	tm = .5*(t0+t1);
-	latent_heat = LatentHeat(tm); // in the unit of (J/kg)
-	JM = JH/latent_heat;
-	return JM;
 }
 
 DEFINE_INIT(idf_cells, domain)
@@ -273,7 +263,8 @@ DEFINE_ADJUST(calc_flux, domain)
 	[methods] 1. get the temperatures and concentrations of the identified pair of wall cells
 	          2. calculate the permeation flux according to the given temperature and concentration
 	          3. calculate the permeative heat flux, here only latent heats are considered while the conjugated conductive heat transfer scheme is used.
-	          4. if the cell is overheated with the heat flux input, reset the permeation flux and go back to step 2
+	          4. if the feed-side cells are overcooled with the heat release, set their temperatures as permeate-side ones, 
+			     and if the permeate-side cells are overheated with the heat flux input, set their temperatures as feed-side ones
 	[outputs] 1. C_UDMI(1) for mass flux
 	          2. C_UDMI(2) for latent heat flux
 */
@@ -309,8 +300,12 @@ DEFINE_ADJUST(calc_flux, domain)
 			mass_flux = .0;
 		}
 		heat_flux = HeatFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
-		heat_flux = HeatFluxCheck(heat_flux, C_R(WallCell[i][0].index, t_FeedFluid)*C_VOLUME(WallCell[i][0].index, t_FeedFluid), C_CP(WallCell[i][0].index, t_FeedFluid), WallCell[i][0].temperature, WallCell[i][1].temperature);
-		mass_flux = MassFluxCheck(heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature); 
+		if (HeatFluxCheck(heat_flux, C_R(WallCell[i][0].index, t_FeedFluid)*C_VOLUME(WallCell[i][0].index, t_FeedFluid), C_CP(WallCell[i][0].index, t_FeedFluid), WallCell[i][0].temperature, WallCell[i][1].temperature) == 0) 
+		{
+			C_T(WallCell[i][0].index, t_FeedFluid) = WallCell[i][1].temperature;
+			mass_flux = 0.;
+			heat_flux = 0.;
+		}
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -mass_flux; // store the permeation flux in the UDMI(1)
 		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +mass_flux;
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -heat_flux; // store the heat flux in the UDMI(2)
