@@ -1,3 +1,4 @@
+#include <math.h>
 #include "udf.h"
 #include "consts.h"
 /*Constants used in psat_h2o to calculate saturation pressure*/
@@ -36,12 +37,12 @@ real psat_h2o(real tsat)
  return psat;
 }
 
+real ThermCond_Maxwell(real temp, real porosity, int opt) 
 /* Calculate the thermal conductivity of the membrane for its porosity higher than 60%
 	 with the correlation of Garcia-Payo and lzquierdo-Gil [J Phys D 2004, 37(21): 3008-3016]
 	 which is also commented by Hitsov [Sep Purification Tech 2015, 142: 48-64]
 	 all the following reference numbers are in the review of Hitsov
 */
-real ThermCond_Maxwell(real temp, real porosity, int opt) 
 {
 	real result;
 	real kappa[2], beta;
@@ -81,3 +82,57 @@ real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (
 	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
 	return result;
 }
+/*
+[Objectives] define the propertis in terms of temperature or mass fraction 
+[methods]  1. obtain the temperature and mass fraction of the cell
+		   2. calculate the properties with the given temperature/mass fraction and property function
+[outputs]  the properties of materials
+*/
+DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
+{
+	real result;
+	real temp_tca = C_T(c,t);
+	real conc_tca = C_YI(c,t,1);
+	result = (0.608+(7.46e-4)*(temp_tca-273.15))*(1-0.98*(18*conc_tca/(58.5-40.5*conc_tca)));
+	return result;
+}
+
+DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
+{
+	real result;
+	real conc_d = C_YI(c,t,1);
+	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
+	return result;
+}
+DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
+{
+	real result,xa,tem;
+	real temp_v = C_T(c,t);
+	real conc_v = C_YI(c,t,1);
+	xa=(18*conc_v/(58.5-40.5*conc_v));
+	tem=temp_v-273.15;
+	result=(8.7e-4-6.3e-6*tem)*(1+12.9*xa);
+	return result;
+}
+/*
+//[Problems] can not obtain the right mass fraction, making cp value remain constant of 4181.4//
+//DEFINE_SPECIFIC_HEAT(Specific_heat0, T, Tref, h, yi)//result of Polynomial fitting, original data is from 化学化工物性数据手册p494
+//{
+//	Domain *domain = Get_Domain(id_domain);
+//	Thread *t;
+//	cell_t c;
+//	real xm;
+//	real cp=0.;
+//	thread_loop_c(t, domain)
+//{
+//	begin_c_loop(c, t)
+//	{
+//		xm= C_YI(c, t,1);
+//		cp= (4.3876*xm*xm - 4.8591*xm + 4.1814)*1000;
+//		*h=cp*(T-Tref);
+//	}
+//	end_c_loop(c, t);
+//}
+//				return cp;
+//}
+*/
