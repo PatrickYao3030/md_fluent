@@ -72,7 +72,7 @@ real HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overh
 	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
 	{
 		result = m*cp*(t0-tref)/A;
-		Message("Overheat warning, the heat flux of %g is revised to %g.\n", JH, result);
+		Message("[Overheat warning] The heat flux of %g is revised to %g.\n", JH, result);
 	}
 	else
 	{
