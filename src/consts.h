@@ -6,11 +6,19 @@
 #define PES 3
 #define SOLID 0
 #define GAS 1
+// check the zones' id in FLUENT
 #define id_domain 1
 #define id_FeedFluid 32
 #define id_PermFluid 33
 #define id_FeedInterface 30
 #define id_PermInterface 2
+/* the customized messages displayed in command-line window of FLUENT have 3 levels
+   Lvl.0 stands for serious problems needed care
+	 Lvl.1            warnings
+	 Lvl.2            minor messages
+	 these messages are controled to be display by the switch of id_message
+*/
+#define id_message 1
 
 struct PorousMaterials{
 	real thickness;
