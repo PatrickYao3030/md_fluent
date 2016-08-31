@@ -105,12 +105,10 @@ DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
 }
 DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
 {
-	real result,xa,tem;
+	real result;
 	real temp_v = C_T(c,t);
 	real conc_v = C_YI(c,t,1);
-	xa=(18*conc_v/(58.5-40.5*conc_v));
-	tem=temp_v-273.15;
-	result=(8.7e-4-6.3e-6*tem)*(1+12.9*xa);
+	result=(17.02821-0.39206*(temp_v-273.15)+0.188912*(conc_v*100)-0.00466*(temp_v-273.15)*(conc_v*100)+0.003025*(temp_v-273.15)*(temp_v-273.15)+0.011738*(conc_v*100)*(conc_v*100))*0.001;
 	return result;
 }
 /*
