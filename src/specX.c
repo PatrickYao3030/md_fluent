@@ -21,6 +21,7 @@ FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 int gid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
+struct MessageInfos CommandLineMessage;
 
 extern real SatConc(), ThermCond_Maxwell(), psat_h2o(), LatentHeat();
 
@@ -86,7 +87,7 @@ void MembraneTransfer(int opt)
 	          2. heat flux in C_UDMI(2)
 */
 {
-	int i = 0, iside = 0;
+	int i = 0, iside = 0, flag = 0;
 	real mass_flux, latent_heat_flux, conductive_heat_flux, total_heat_flux;
 	cell_t i_cell[2];
 	Thread *t_fluid[2];
@@ -117,41 +118,52 @@ void MembraneTransfer(int opt)
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
+		flag = HeatFluxCheck(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
+		if (flag = -1) // if overcool happens, reset the temperature of feed-side wall cell as the permeate-side one
+		{
+			//if (id_message >= 1) 
+			//{
+			//	CommandLineMessage.flag = flag;
+			//	CommandLineMessage.content[79] = "[Overcool warning]";
+			//}
+			C_T(i_cell[0], t_fluid[0]) = WallCell[i][1].temperature;
+			mass_flux = 0.;
+			latent_heat_flux = 0.;
+		}
 		if (id_message+opt > 2) Message("Cell pair of #%d and %d T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
 		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
 		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
 	}
+	//Message("Message flag %d, %79s\n", CommandLineMessage.flag, CommandLineMessage.content[79]);
 	return;
 }
 
-real HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
+int HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
+/*
+	[objectives] calculate max heat flux, exerted into the wall cell
+	[methods] 1. calculate the heat flow
+	          2. calculate the temperature change according to the exerted sensible heat
+						3. if cell temperature is lower than the permeate-side one, or vise versa, overheat/cool happens.
+	[outputs]    heat flux [J/m2-s]
+*/
 {
+	int result = 0;
 	real q = 0., t = 0.;
-	real result = 0.;
 	real A = 0.5e-3;
 	q = JH*A;
 	t = t0-q/(m*cp);  
 	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
 	{
-		result = m*cp*(t0-tref)/A;
-		if (id_message > 2) Message("[Overheat warning] The heat flux of %g is revised to %g.\n", JH, result);
+		if (id_message >= 3) Message("[Overheat/cool warning] The heat flux of %g should be revised to %g.\n", JH, m*cp*(t0-tref)/A);
+		result = -1;
 	}
 	else
 	{
-		result = m*cp*(t0-t)/A;
+		result = 1; // normal status
 	}
 	return result;
-}
-
-real MassFluxCheck(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
-{
-	real latent_heat = 0., tm = 0., JM = 0.;
-	tm = .5*(t0+t1);
-	latent_heat = LatentHeat(tm); // in the unit of (J/kg)
-	JM = JH/latent_heat;
-	return JM;
 }
 
 DEFINE_INIT(idf_cells, domain)
@@ -367,7 +379,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	          2. C_UDMI(2) for latent heat flux
 */
 {
-	MembraneTransfer(2);
+	MembraneTransfer(0);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)

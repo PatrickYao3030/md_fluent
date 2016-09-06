@@ -19,7 +19,7 @@
 	 Lvl.3            debug messages
 	 these messages are controled to be display by the switch of id_message
 */
-#define id_message 1
+#define id_message 2
 
 struct PorousMaterials{
 	real thickness;
@@ -39,4 +39,7 @@ struct CellInfos{
 	real temperature;
 	struct Components massfraction;
 };
-
+struct MessageInfos{
+	int flag;
+	char content[79];
+};
