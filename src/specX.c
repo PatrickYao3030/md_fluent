@@ -82,8 +82,8 @@ void MembraneTransfer(int opt)
 	[methods] 1. get the flow field adhered on the both sides of the membrane and store them into the constructed workspace "WallCell"
 	          2. calculate the permeation flux according to the temperature differences
 						3. calculate the heat flux according to the mass flux
-	[outputs] 1. permeation flux in C_UDMI(0)
-	          2. heat flux in C_UDMI(1)
+	[outputs] 1. permeation flux in C_UDMI(1)
+	          2. heat flux in C_UDMI(2)
 */
 {
 	int i = 0, iside = 0;
@@ -91,12 +91,16 @@ void MembraneTransfer(int opt)
 	cell_t i_cell[2];
 	Thread *t_fluid[2];
 	Domain *domain = Get_Domain(id_domain);
-	if (id_message > 1) Message("[MembraneTransfer] Get the domain\n");
 	t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
 	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
 	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
 	{
-		for (iside=0; iside<1; iside++)
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
+		{
+			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
+			return ;
+		}
+		for (iside=0; iside<=1; iside++)
 		{
 			i_cell[iside] = WallCell[i][iside].index;
 			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
@@ -113,8 +117,11 @@ void MembraneTransfer(int opt)
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		if (id_message > 2) Message("Cell#%d T = (%g, %g), with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
-		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return ;
+		if (id_message+opt > 2) Message("Cell pair of #%d and %d T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
+		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
+		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
+		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
+		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
 	}
 	return;
 }
@@ -346,7 +353,7 @@ DEFINE_ON_DEMAND(testHeatEff_0905)
 	//t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
 	//t_interface[0] = Lookup_Thread(domain, id_FeedInterface);
 	//t_interface[1] = Lookup_Thread(domain, id_PermInterface);
-	MembraneTransfer(1);
+	MembraneTransfer(2);
 }
 
 DEFINE_ADJUST(calc_flux, domain)

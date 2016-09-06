@@ -19,7 +19,7 @@
 	 Lvl.3            debug messages
 	 these messages are controled to be display by the switch of id_message
 */
-#define id_message 3
+#define id_message 1
 
 struct PorousMaterials{
 	real thickness;
