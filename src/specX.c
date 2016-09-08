@@ -35,6 +35,14 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 }
 
 real LocalMassFlux(real tw0, real tw1, real ww0, real ww1)
+/*
+	[objectives] Calculate the permeation flux for each pair of cells
+	[methods] 1. calculate the averaged membrane temperature
+						2. calculate the membrane properties and fill the workspace of membrane
+						3. calculate the driving force and resistance, and then the mass transfer
+	[outputs] 1. workspace of membrane with filled properties
+						2. permeation flux (kg/m2-s)
+*/
 {
 	real result = 0.;
 	real drv_force = 0., resistance = 0.;
@@ -48,6 +56,14 @@ real LocalMassFlux(real tw0, real tw1, real ww0, real ww1)
 }
 
 real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
+/*
+	[objectives] calculate the heat transfer accompanying with the permeation
+	[methods] 1. calculate the averaged membrane temperature
+	          2. calculate the membrane properties and fill the workspace of membrane
+						3. calculate the heat flux (J/kg)
+	[outputs] 1. workspace of membrane with filled properties
+	          2. latent heat flux, conductive heat flux and total heat flux (J/kg)
+*/
 {
 	real avg_temp = 0., diff_temp = 0.;
 	real latent_heat = 0.;
