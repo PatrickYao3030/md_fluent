@@ -31,6 +31,15 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.MDcoeff = 2.4e-6;
 }
 
+void Monitor_CellPair(int opt, int idx_cells)
+/*
+	[objectives] track the specified pair of cells adhered on the both sides of the membrane
+	[methods] 1. put the cells' properties into the allocated storage space
+	[outputs] 1. write the cell info into a data file
+*/
+{
+}
+
 real MassFlux(real tw0, real tw1, real ww0, real ww1)
 {
 	extern real psat_h2o();
