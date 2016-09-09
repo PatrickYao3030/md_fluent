@@ -37,6 +37,17 @@ real psat_h2o(real tsat)
  return psat;
 }
 
+real MDCoeff(void)
+/*
+	[objectives] calculate the membrane distillation coefficient
+	[methods]
+	[outputs] 1. real value of md coefficient (kg/Pa-m2-s)
+*/
+{
+	real result = 0.;
+	return result;
+}
+
 real ThermCond_Maxwell(real temp, real porosity, int opt) 
 /* Calculate the thermal conductivity of the membrane for its porosity higher than 60%
 	 with the correlation of Garcia-Payo and lzquierdo-Gil [J Phys D 2004, 37(21): 3008-3016]
