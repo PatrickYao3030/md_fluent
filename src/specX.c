@@ -60,9 +60,9 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 	[objectives] calculate the heat transfer accompanying with the permeation
 	[methods] 1. calculate the averaged membrane temperature
 	          2. calculate the membrane properties and fill the workspace of membrane
-						3. calculate the heat flux (J/kg)
+						3. calculate the heat flux
 	[outputs] 1. workspace of membrane with filled properties
-	          2. latent heat flux, conductive heat flux and total heat flux (J/kg)
+	          2. latent heat flux, conductive heat flux and total heat flux (J/m2-s)
 */
 {
 	real avg_temp = 0., diff_temp = 0.;
@@ -99,6 +99,8 @@ void MembraneTransfer(int opt)
 	[methods] 1. get the flow field adhered on the both sides of the membrane and store them into the constructed workspace "WallCell"
 	          2. calculate the permeation flux according to the temperature differences
 						3. calculate the heat flux according to the mass flux
+						4. if the exerted heat causes the overcool/heat, revise the mass flux
+						5. revise the latent heat flux according to the revised mass flux
 	[outputs] 1. permeation flux in C_UDMI(1)
 	          2. heat flux in C_UDMI(2)
 */
@@ -134,18 +136,9 @@ void MembraneTransfer(int opt)
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		flag = HeatFluxCheck(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
-		if (flag = -1) // if overcool happens, reset the temperature of feed-side wall cell as the permeate-side one
-		{
-			//if (id_message >= 1) 
-			//{
-			//	CommandLineMessage.flag = flag;
-			//	CommandLineMessage.content[79] = "[Overcool warning]";
-			//}
-			C_T(i_cell[0], t_fluid[0]) = WallCell[i][1].temperature;
-			mass_flux = 0.;
-			latent_heat_flux = 0.;
-		}
+		total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
+		mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
+		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		if (id_message+opt > 2) Message("Cell pair of #%d and %d T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
 		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
 		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
@@ -156,7 +149,7 @@ void MembraneTransfer(int opt)
 	return;
 }
 
-int HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
+real RevisedHeatFlux(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
 /*
 	[objectives] calculate max heat flux, exerted into the wall cell
 	[methods] 1. calculate the heat flow
@@ -165,7 +158,7 @@ int HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overhe
 	[outputs]    heat flux [J/m2-s]
 */
 {
-	int result = 0;
+	real result = 0;
 	real q = 0., t = 0.;
 	real A = 0.5e-3;
 	q = JH*A;
@@ -173,15 +166,24 @@ int HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overhe
 	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
 	{
 		if (id_message >= 3) Message("[Overheat/cool warning] The heat flux of %g should be revised to %g.\n", JH, m*cp*(t0-tref)/A);
-		result = -1;
+		result = m*cp*(t0-tref)/A;
 	}
 	else
 	{
-		result = 1; // normal status
+		result = m*cp*(t0-t)/A; // normal status
 	}
 	return result;
 }
 
+real RevisedMassFlux(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
+{
+	extern real LatentHeat();
+	real latent_heat = 0., tm = 0., JM = 0.;
+	tm = .5*(t0+t1);
+	latent_heat = LatentHeat(tm); // in the unit of (J/kg)
+	JM = JH/latent_heat;
+	return JM;
+}
 DEFINE_INIT(idf_cells, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
