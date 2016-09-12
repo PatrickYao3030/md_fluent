@@ -47,7 +47,7 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 	strcpy(CellPairInfo[rec_idx].content, str_line_buffer);
 }
 
-real MassFlux(real tw0, real tw1, real ww0, real ww1)
+real LocalMassFlux(real tw0, real tw1, real ww0, real ww1)
 {
 	real result = 0.;
 	real drv_force = 0., resistance = 0.;
