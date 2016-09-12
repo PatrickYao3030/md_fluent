@@ -38,4 +38,7 @@ struct CellInfos{
 	real temperature;
 	struct Components massfraction;
 };
-
+struct MessageInfos{
+	int flag;
+	char content[79];
+};

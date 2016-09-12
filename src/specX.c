@@ -21,6 +21,7 @@ FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 int gid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
+struct MessageInfos CellPairInfo[99999];
 
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
@@ -31,13 +32,17 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.MDcoeff = 2.4e-6;
 }
 
-void Monitor_CellPair(int opt, int idx_cells)
+void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 /*
 	[objectives] track the specified pair of cells adhered on the both sides of the membrane
 	[methods] 1. put the cells' properties into the allocated storage space
 	[outputs] 1. write the cell info into a data file
 */
 {
+	char str_line_buffer[79];
+	CellPairInfo[rec_idx].flag = opt;
+	sprintf(str_line_buffer, "TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
+	strcpy(CellPairInfo[rec_idx].content, str_line_buffer);
 }
 
 real MassFlux(real tw0, real tw1, real ww0, real ww1)
