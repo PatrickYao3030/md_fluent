@@ -23,6 +23,8 @@ struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[99999];
 
+extern real SatConc(), ThermCond_Maxwell(), psat_h2o(), LatentHeat();
+
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
 	membrane.thickness = 1.5e-4;
@@ -47,7 +49,6 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 
 real MassFlux(real tw0, real tw1, real ww0, real ww1)
 {
-	extern real psat_h2o();
 	real result = 0.;
 	real drv_force = 0., resistance = 0.;
 	real avg_temp = 0.;
@@ -59,9 +60,16 @@ real MassFlux(real tw0, real tw1, real ww0, real ww1)
 	return result;
 }
 
-real HeatFlux(real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
+real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
+/*
+	[objectives] calculate the heat transfer accompanying with the permeation
+	[methods] 1. calculate the averaged membrane temperature
+	          2. calculate the membrane properties and fill the workspace of membrane
+						3. calculate the heat flux
+	[outputs] 1. workspace of membrane with filled properties
+	          2. latent heat flux, conductive heat flux and total heat flux (J/m2-s)
+*/
 {
-	extern real LatentHeat();
 	real avg_temp = 0., diff_temp = 0.;
 	real latent_heat = 0.;
 	real heat_flux_0 = 0., heat_flux_1 = 0.;
@@ -72,30 +80,107 @@ real HeatFlux(real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux
 	latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
 	heat_flux_0 = latent_heat*mass_flux; // latent heat flux
 	heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
-	result = heat_flux_0; // (W/m2), consider the latent heat flux only
+	switch(opt)
+	{
+	case 0:
+		result = heat_flux_0; // (W/m2), consider the latent heat flux only
+		break;
+	case 1:
+		result = heat_flux_1; // (W/m2), consider the conductive heat flux only
+		break;
+	case 10:
+		result = heat_flux_0+heat_flux_1;
+		break;
+	default:
+		result = 0.;
+		break;
+	} 
 	return result;
 }
 
-real HeatFluxCheck(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
+void MembraneTransfer(int opt)
+/*
+	[objectives] calculate the md heat and mass transfer across the membrane
+	[methods] 1. get the flow field adhered on the both sides of the membrane and store them into the constructed workspace "WallCell"
+	          2. calculate the permeation flux according to the temperature differences
+						3. calculate the heat flux according to the mass flux
+						4. if the exerted heat causes the overcool/heat, revise the mass flux
+						5. revise the latent heat flux according to the revised mass flux
+	[outputs] 1. permeation flux in C_UDMI(1)
+	          2. heat flux in C_UDMI(2)
+*/
 {
+	int i = 0, iside = 0, flag = 0;
+	real mass_flux, latent_heat_flux, conductive_heat_flux, total_heat_flux;
+	cell_t i_cell[2];
+	Thread *t_fluid[2];
+	Domain *domain = Get_Domain(id_domain);
+	t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
+	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
+	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
+	{
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
+		{
+			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
+			return ;
+		}
+		for (iside=0; iside<=1; iside++)
+		{
+			i_cell[iside] = WallCell[i][iside].index;
+			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
+			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
+		}
+		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
+		{
+			mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
+		}
+		else
+		{
+			mass_flux = 0.;
+		}
+		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
+		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
+		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
+		total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
+		mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
+		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
+		if (id_message+opt > 2) Message("Cell pair of #%d and %d T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
+		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
+		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
+		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
+		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
+	}
+	//Message("Message flag %d, %79s\n", CommandLineMessage.flag, CommandLineMessage.content[79]);
+	return;
+}
+
+real RevisedHeatFlux(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
+/*
+	[objectives] calculate max heat flux, exerted into the wall cell
+	[methods] 1. calculate the heat flow
+	          2. calculate the temperature change according to the exerted sensible heat
+						3. if cell temperature is lower than the permeate-side one, or vise versa, overheat/cool happens.
+	[outputs]    heat flux [J/m2-s]
+*/
+{
+	real result = 0;
 	real q = 0., t = 0.;
-	real result = 0.;
 	real A = 0.5e-3;
 	q = JH*A;
 	t = t0-q/(m*cp);  
 	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
 	{
+		if (id_message >= 3) Message("[Overheat/cool warning] The heat flux of %g should be revised to %g.\n", JH, m*cp*(t0-tref)/A);
 		result = m*cp*(t0-tref)/A;
-		if (id_message > 1) Message("[Overheat warning] The heat flux of %g is revised to %g.\n", JH, result);
 	}
 	else
 	{
-		result = m*cp*(t0-t)/A;
+		result = m*cp*(t0-t)/A; // normal status
 	}
 	return result;
 }
 
-real MassFluxCheck(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
+real RevisedMassFlux(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
 {
 	extern real LatentHeat();
 	real latent_heat = 0., tm = 0., JM = 0.;
@@ -104,7 +189,6 @@ real MassFluxCheck(real JH, real t0, real t1) // reversely calculate the mass fl
 	JM = JH/latent_heat;
 	return JM;
 }
-
 DEFINE_INIT(idf_cells, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
@@ -216,8 +300,8 @@ DEFINE_ON_DEMAND(testGetDomain)
 	Thread *t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
 	Thread *t_PermInterface = Lookup_Thread(domain, id_PermInterface);
 
-	fout2 = fopen("idf_cell2.out", "w");
-	fout3 = fopen("idf_cell3.out", "w");
+	//fout2 = fopen("idf_cell2.out", "w");
+	//fout3 = fopen("idf_cell3.out", "w");
 	//begin_c_loop(i_cell, t_FeedFluid){
 	//	Message("cell#%d\n", i_cell);
 	//}
@@ -238,9 +322,9 @@ DEFINE_ON_DEMAND(testGetProp)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
-															   density (rho)
-															   enthalpy (h)
-															   volume of the cell (vol)
+															                               density (rho)
+															                               enthalpy (h)
+															                               volume of the cell (vol)
 	[methods] get the properties by built-in macros 
 	[outputs] FLUENT command-line output
 */
@@ -281,6 +365,32 @@ DEFINE_ON_DEMAND(testGetProp)
 	end_f_loop(i_face, t_FeedInterface)
 }
 
+DEFINE_ON_DEMAND(testHeatEff_0905)
+/*
+	[objectives] check the heat efficiency
+	[Preliminary] run the initiation step in FLUENT to identify the wall cells
+	[methods] 1. get the initial wall-temperature profiles 
+	          2. calculate the permeation flux along the membrane (JM)
+						3. calculate the heat flux related to the evaporation/condensation (JH_v)
+						4. calculate the conductive heat flux (JH_c)
+						5. eta = JH_v/(JH_v+JH_c)
+	[outputs] FLUENT command-line output
+*/
+{
+	//int i = 0, iside = 0;
+	//cell_t i_cell[2];
+	//face_t i_face[2];
+	//Thread *t_fluid[2];
+	//Thread *t_interface[2];
+	//Domain *domain = Get_Domain(id_domain);
+	//real mass_flux, latent_heat_flux, conductive_heat_flux, total_heat_flux;
+	//t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
+	//t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
+	//t_interface[0] = Lookup_Thread(domain, id_FeedInterface);
+	//t_interface[1] = Lookup_Thread(domain, id_PermInterface);
+	MembraneTransfer(2); // opt = 2 indicates to show the debug messages
+}
+
 DEFINE_ADJUST(calc_flux, domain)
 /*
 	[objectives] calculate the flux across the membrane
@@ -292,46 +402,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	          2. C_UDMI(2) for latent heat flux
 */
 {
-	extern real SatConc();
-	Thread *t_FeedFluid, *t_PermFluid;
-	//Thread *t_FeedInterface, *t_PermInterface;
-	face_t i_face0, i_face1;
-	cell_t i_cell0, i_cell1;
-	real loc0[ND_ND], loc1[ND_ND];
-	real mass_flux, heat_flux; 
-	int i = 0;
-
-	//fout4 = fopen("idf_cell4.out", "w");
-
-	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
-	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
-	//t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
-	//t_PermInterface = Lookup_Thread(domain, id_PermInterface);
-
-	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
-	{
-		WallCell[i][0].temperature = C_T(WallCell[i][0].index, t_FeedFluid);
-		WallCell[i][1].temperature = C_T(WallCell[i][1].index, t_PermFluid);
-		WallCell[i][0].massfraction.water = C_YI(WallCell[i][0].index, t_FeedFluid, 0);
-		WallCell[i][1].massfraction.water = C_YI(WallCell[i][1].index, t_PermFluid, 0);
-		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
-		{
-			mass_flux = MassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
-		}
-		else
-		{
-			mass_flux = .0;
-		}
-		heat_flux = HeatFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
-		heat_flux = HeatFluxCheck(heat_flux, C_R(WallCell[i][0].index, t_FeedFluid)*C_VOLUME(WallCell[i][0].index, t_FeedFluid), C_CP(WallCell[i][0].index, t_FeedFluid), WallCell[i][0].temperature, WallCell[i][1].temperature);
-		mass_flux = MassFluxCheck(heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature); 
-		C_UDMI(WallCell[i][0].index, t_FeedFluid, 1) = -mass_flux; // store the permeation flux in the UDMI(1)
-		C_UDMI(WallCell[i][1].index, t_PermFluid, 1) = +mass_flux;
-		C_UDMI(WallCell[i][0].index, t_FeedFluid, 2) = -heat_flux; // store the heat flux in the UDMI(2)
-		C_UDMI(WallCell[i][1].index, t_PermFluid, 2) = +heat_flux;
-		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
-	}
-	//fclose(fout4);
+	MembraneTransfer(0);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
