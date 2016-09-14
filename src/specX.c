@@ -21,7 +21,7 @@ FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 int gid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
-struct MessageInfos CellPairInfo[99999];
+struct MessageInfos CellPairInfo[MAXRECLINE];
 
 extern real SatConc(), ThermCond_Maxwell(), psat_h2o(), LatentHeat();
 
@@ -42,9 +42,16 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 */
 {
 	char str_line_buffer[79];
-	CellPairInfo[rec_idx].flag = opt;
-	sprintf(str_line_buffer, "TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
-	strcpy(CellPairInfo[rec_idx].content, str_line_buffer);
+	Message("Running Monitor_CellPair() for opt = %d, record index of %d\n", opt, rec_idx);
+	if (opt == 0) return;
+	//if ((rec_idx > 0) && (rec_idx <= MAXRECLINE))
+	//{
+		CellPairInfo[rec_idx].flag = opt;
+		sprintf(str_line_buffer, "TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
+		Message("TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
+		strcpy(CellPairInfo[rec_idx].content, str_line_buffer);
+	//}
+	return;
 }
 
 real LocalMassFlux(real tw0, real tw1, real ww0, real ww1)
@@ -144,13 +151,13 @@ void MembraneTransfer(int opt)
 		total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
 		mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		if (id_message+opt > 2) Message("Cell pair of #%d and %d T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
+		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
 		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
 		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
 	}
-	//Message("Message flag %d, %79s\n", CommandLineMessage.flag, CommandLineMessage.content[79]);
+	Monitor_CellPair(1, flag++, 17);
 	return;
 }
 
@@ -365,7 +372,7 @@ DEFINE_ON_DEMAND(testGetProp)
 	end_f_loop(i_face, t_FeedInterface)
 }
 
-DEFINE_ON_DEMAND(testHeatEff_0905)
+DEFINE_ON_DEMAND(TProfile_0914)
 /*
 	[objectives] check the heat efficiency
 	[Preliminary] run the initiation step in FLUENT to identify the wall cells
@@ -377,18 +384,27 @@ DEFINE_ON_DEMAND(testHeatEff_0905)
 	[outputs] FLUENT command-line output
 */
 {
-	//int i = 0, iside = 0;
-	//cell_t i_cell[2];
-	//face_t i_face[2];
-	//Thread *t_fluid[2];
-	//Thread *t_interface[2];
-	//Domain *domain = Get_Domain(id_domain);
-	//real mass_flux, latent_heat_flux, conductive_heat_flux, total_heat_flux;
-	//t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
-	//t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
-	//t_interface[0] = Lookup_Thread(domain, id_FeedInterface);
-	//t_interface[1] = Lookup_Thread(domain, id_PermInterface);
 	MembraneTransfer(2); // opt = 2 indicates to show the debug messages
+}
+
+DEFINE_ON_DEMAND(testOutputCells_0913)
+/*
+	[objectives] output the cells' info
+	[Preliminary] run the case
+	[methods] 1. check the flag of the records
+	          2. output the messages of CellPairInfo
+	[outputs] FLUENT command-line output
+*/
+{
+	int idx = 0;
+	Message("Output the info of the specified pair of cells ... \n");
+	Message("%s\n", CellPairInfo[1].content);
+	for (idx=0; idx<=10; idx++)
+	{
+		Message("#%d: (flag %d) %s\n", idx, CellPairInfo[idx].flag, CellPairInfo[idx].content);
+		if (CellPairInfo[idx].flag == 0) return;
+	}
+	return;
 }
 
 DEFINE_ADJUST(calc_flux, domain)

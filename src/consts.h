@@ -1,3 +1,4 @@
+#define MAXRECLINE 99999
 #define MAXCELLNUM 9999
 #define EPS 5.0e-4
 #define PVDF 0
