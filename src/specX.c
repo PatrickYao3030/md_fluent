@@ -18,7 +18,7 @@
 
 FILE *fout0, *fout1, *fout2, *fout3, *fout4;
 
-int gid = 0;
+int gid = 0, rid = 0;
 struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[MAXRECLINE];
@@ -31,7 +31,7 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
 	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
-	membrane.MDcoeff = 2.4e-6;
+	membrane.MDcoeff = 2.4e-7;
 }
 
 void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
@@ -42,15 +42,15 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 */
 {
 	char str_line_buffer[79];
-	Message("Running Monitor_CellPair() for opt = %d, record index of %d\n", opt, rec_idx);
+	//Message("Running Monitor_CellPair() for opt = %d, record index of %d\n", opt, rec_idx);
 	if (opt == 0) return;
-	//if ((rec_idx > 0) && (rec_idx <= MAXRECLINE))
-	//{
+	if ((rec_idx >= 0) && (rec_idx <= MAXRECLINE))
+	{
 		CellPairInfo[rec_idx].flag = opt;
 		sprintf(str_line_buffer, "TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
-		Message("TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
+		//Message("TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
 		strcpy(CellPairInfo[rec_idx].content, str_line_buffer);
-	//}
+	}
 	return;
 }
 
@@ -117,7 +117,7 @@ void MembraneTransfer(int opt)
 	          2. heat flux in C_UDMI(2)
 */
 {
-	int i = 0, iside = 0, flag = 0;
+	int i = 0, iside = 0;
 	real mass_flux, latent_heat_flux, conductive_heat_flux, total_heat_flux;
 	cell_t i_cell[2];
 	Thread *t_fluid[2];
@@ -129,7 +129,7 @@ void MembraneTransfer(int opt)
 		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
 		{
 			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
-			return ;
+			break ;
 		}
 		for (iside=0; iside<=1; iside++)
 		{
@@ -148,16 +148,16 @@ void MembraneTransfer(int opt)
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
-		mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
-		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
+		//total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
+		//mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
+		//latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
 		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
 		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
 	}
-	Monitor_CellPair(1, flag++, 17);
+	Monitor_CellPair(1, rid++, 17);
 	return;
 }
 
@@ -387,7 +387,7 @@ DEFINE_ON_DEMAND(TProfile_0914)
 	MembraneTransfer(2); // opt = 2 indicates to show the debug messages
 }
 
-DEFINE_ON_DEMAND(testOutputCells_0913)
+DEFINE_ON_DEMAND(OutputCells_0913)
 /*
 	[objectives] output the cells' info
 	[Preliminary] run the case
@@ -398,11 +398,15 @@ DEFINE_ON_DEMAND(testOutputCells_0913)
 {
 	int idx = 0;
 	Message("Output the info of the specified pair of cells ... \n");
-	Message("%s\n", CellPairInfo[1].content);
-	for (idx=0; idx<=10; idx++)
+	if (rid == 0)
+	{
+		Message("The CellPairInfo is empty! \n");
+		return;
+	}
+	for (idx=0; idx<=rid; idx++)
 	{
 		Message("#%d: (flag %d) %s\n", idx, CellPairInfo[idx].flag, CellPairInfo[idx].content);
-		if (CellPairInfo[idx].flag == 0) return;
+		if (CellPairInfo[idx].flag == 0) break;
 	}
 	return;
 }
