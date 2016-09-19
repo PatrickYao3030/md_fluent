@@ -434,7 +434,7 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.1e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.1mm)
   dS[eqn] = 0.;
   return source;
 }
@@ -448,7 +448,7 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
+	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.1e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.1mm)
   dS[eqn] = 0.;
   return source;
 }
