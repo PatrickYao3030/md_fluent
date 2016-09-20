@@ -9,10 +9,10 @@
 #define GAS 1
 // check the zones' id in FLUENT
 #define id_domain 1
-#define id_FeedFluid 25
-#define id_PermFluid 26
-#define id_FeedInterface 2
-#define id_PermInterface 3
+#define id_FeedFluid 32
+#define id_PermFluid 33
+#define id_FeedInterface 30
+#define id_PermInterface 2
 /* the customized messages displayed in command-line window of FLUENT have 3 levels
    Lvl.0 stands for serious problems needed care
 	 Lvl.1            warnings
