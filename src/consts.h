@@ -38,6 +38,8 @@ struct CellInfos{
 	int index;
 	real centroid[ND_ND];
 	real temperature;
+	real volume;
+	real area;
 	struct Components massfraction;
 };
 struct MessageInfos{

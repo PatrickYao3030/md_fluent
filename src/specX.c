@@ -129,7 +129,7 @@ void MembraneTransfer(int opt)
 		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
 		{
 			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
-			break ;
+			break;
 		}
 		for (iside=0; iside<=1; iside++)
 		{
@@ -152,10 +152,11 @@ void MembraneTransfer(int opt)
 		//mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
 		//latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
-		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
-		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
-		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
-		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
+		for (iside=0; iside<=1; iside++)
+		{
+			C_UDMI(i_cell[iside], t_fluid[iside], 1) = mass_flux*WallCell[i][iside].area/WallCell[i][iside].volume;
+			C_UDMI(i_cell[iside], t_fluid[iside], 2) = latent_heat_flux*WallCell[i][iside].area/WallCell[i][iside].volume;
+		}
 	}
 	Monitor_CellPair(1, rid++, 17);
 	return;
@@ -214,6 +215,7 @@ DEFINE_INIT(idf_cells, domain)
 	Thread *t_FeedInterface, *t_PermInterface;
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
+	real InterfaceArea[ND_ND];
 	int i = 0;
 	real temp = 0.0;
 
@@ -242,6 +244,9 @@ DEFINE_INIT(idf_cells, domain)
 		WallCell[gid][0].centroid[0] = loc0[0];
 		WallCell[gid][0].centroid[1] = loc0[1];
 		WallCell[gid][0].temperature = C_T(i_cell0, t_FeedFluid);
+		WallCell[gid][0].volume = C_VOLUME(i_cell0, t_FeedFluid);
+		F_AREA(InterfaceArea, i_face0, t_FeedInterface);
+		WallCell[gid][0].area = NV_MAG(InterfaceArea);
 		WallCell[gid][0].massfraction.water = C_YI(i_cell0, t_FeedFluid, 0);
 		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
 		{
@@ -255,6 +260,9 @@ DEFINE_INIT(idf_cells, domain)
 				WallCell[gid][1].centroid[0] = loc1[0];
 				WallCell[gid][1].centroid[1] = loc1[1];
 				WallCell[gid][1].temperature = C_T(i_cell1, t_PermFluid);
+				WallCell[gid][1].volume = C_VOLUME(i_cell1, t_PermFluid);
+				F_AREA(InterfaceArea, i_face1, t_PermInterface);
+				WallCell[gid][1].area = NV_MAG(InterfaceArea);
 				WallCell[gid][1].massfraction.water = C_YI(i_cell1, t_PermFluid, 0);
 			}
 		}
@@ -434,7 +442,7 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.1e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.1mm)
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 1); // UDMI(0) = (+1/0/-1) and UDMI(1) stores the positive mass source
   dS[eqn] = 0.;
   return source;
 }
@@ -448,7 +456,7 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.1e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.1mm)
+	source = C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2); // UDMI(0) = (+1/0/-1) and UDMI(2) stores the positive heat source
   dS[eqn] = 0.;
   return source;
 }
