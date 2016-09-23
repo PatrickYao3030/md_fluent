@@ -162,41 +162,6 @@ void MembraneTransfer(int opt)
 	return;
 }
 
-real RevisedHeatFlux(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
-/*
-	[objectives] calculate max heat flux, exerted into the wall cell
-	[methods] 1. calculate the heat flow
-	          2. calculate the temperature change according to the exerted sensible heat
-						3. if cell temperature is lower than the permeate-side one, or vise versa, overheat/cool happens.
-	[outputs]    heat flux [J/m2-s]
-*/
-{
-	real result = 0;
-	real q = 0., t = 0.;
-	real A = 0.5e-3;
-	q = JH*A;
-	t = t0-q/(m*cp);  
-	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
-	{
-		if (id_message >= 3) Message("[Overheat/cool warning] The heat flux of %g should be revised to %g.\n", JH, m*cp*(t0-tref)/A);
-		result = m*cp*(t0-tref)/A;
-	}
-	else
-	{
-		result = m*cp*(t0-t)/A; // normal status
-	}
-	return result;
-}
-
-real RevisedMassFlux(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
-{
-	extern real LatentHeat();
-	real latent_heat = 0., tm = 0., JM = 0.;
-	tm = .5*(t0+t1);
-	latent_heat = LatentHeat(tm); // in the unit of (J/kg)
-	JM = JH/latent_heat;
-	return JM;
-}
 DEFINE_INIT(idf_cells, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
@@ -301,7 +266,7 @@ DEFINE_INIT(idf_cells, domain)
 	//fclose(fout1);
 }
 
-DEFINE_ON_DEMAND(testGetDomain)
+DEFINE_ON_DEMAND(InterCellID_0923)
 {
 	cell_t i_cell, i_cell0, i_cell1;
 	face_t i_face0, i_face1;
@@ -326,14 +291,14 @@ DEFINE_ON_DEMAND(testGetDomain)
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		Message("interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
+		Message("Feed-side interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
 		gid++;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
 }
 
-DEFINE_ON_DEMAND(testGetProp)
+DEFINE_ON_DEMAND(AreaVec_0923)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
@@ -456,7 +421,7 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2); // UDMI(0) = (+1/0/-1) and UDMI(2) stores the positive heat source
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2); // UDMI(0) = (+1/0/-1) and UDMI(2) stores the positive heat source
   dS[eqn] = 0.;
   return source;
 }
