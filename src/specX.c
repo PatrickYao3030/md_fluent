@@ -54,17 +54,17 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 	return;
 }
 
-real LocalMassFlux(real tw0, real tw1, real ww0, real ww1)
+real LocalMassFlux(real tw0, real tw1, real ww0, real ww1) // if tw0 > tw1, the mass_flux should be positive, or vice versa
 {
-	real result = 0.;
+	real JM = 0.;
 	real drv_force = 0., resistance = 0.;
 	real avg_temp = 0.;
 	avg_temp = .5*(tw0+tw1);
 	GetProp_Membrane(avg_temp);
 	drv_force = psat_h2o(tw0)-psat_h2o(tw1);
 	resistance = 1./membrane.MDcoeff;
-	result = drv_force/resistance; // use SI unit (kg/m2-s)
-	return result;
+	JM = drv_force/resistance; // use SI unit (kg/m2-s)
+	return JM;
 }
 
 real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
@@ -80,29 +80,36 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 	real avg_temp = 0., diff_temp = 0.;
 	real latent_heat = 0.;
 	real heat_flux_0 = 0., heat_flux_1 = 0.;
-	real result = 0.;
-	avg_temp = .5*(tw0+tw1);
-	diff_temp = tw0-tw1;
-	GetProp_Membrane(avg_temp);
-	latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
-	heat_flux_0 = latent_heat*mass_flux; // latent heat flux
-	heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
-	switch(opt)
+	real JH = 0.;
+	if (((tw0>tw1) && (mass_flux>0)) || ((tw0<tw1) && (mass_flux<0))) // the sign of mass_flux should be same as tw0-tw1
 	{
-	case 0:
-		result = heat_flux_0; // (W/m2), consider the latent heat flux only
-		break;
-	case 1:
-		result = heat_flux_1; // (W/m2), consider the conductive heat flux only
-		break;
-	case 10:
-		result = heat_flux_0+heat_flux_1;
-		break;
-	default:
-		result = 0.;
-		break;
-	} 
-	return result;
+		avg_temp = .5*(tw0+tw1);
+		diff_temp = tw0-tw1;
+		GetProp_Membrane(avg_temp);
+		latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
+		heat_flux_0 = latent_heat*mass_flux; // latent heat flux
+		heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
+		switch(opt)
+		{
+		case 0:
+			JH = heat_flux_0; // (W/m2), consider the latent heat flux only
+			break;
+		case 1:
+			JH = heat_flux_1; // (W/m2), consider the conductive heat flux only
+			break;
+		case 10:
+			JH = heat_flux_0+heat_flux_1;
+			break;
+		default:
+			JH = 0.;
+			break;
+		}
+	}
+	else
+	{
+		Message("[ERROR] Mass flux has a wrong direction \n");
+	}
+	return JH;
 }
 
 void MembraneTransfer(int opt)
@@ -124,14 +131,14 @@ void MembraneTransfer(int opt)
 	Domain *domain = Get_Domain(id_domain);
 	t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
 	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
-	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
+	for (i=0; i<MAXCELLNUM; i++) 
 	{
-		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) // check the pre-existed workspace
 		{
 			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
 			break;
 		}
-		for (iside=0; iside<=1; iside++)
+		for (iside=0; iside<=1; iside++) // get the ID, T and YI(0) of the wall cells for both sides
 		{
 			i_cell[iside] = WallCell[i][iside].index;
 			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
@@ -145,20 +152,17 @@ void MembraneTransfer(int opt)
 		{
 			mass_flux = 0.;
 		}
-		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
-		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		//total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
-		//mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
-		//latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
-		for (iside=0; iside<=1; iside++)
+		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the latent heat
+		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the conductive heat
+		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the total heat
+		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux); // output results in debug mode
+		for (iside=0; iside<=1; iside++) // set the UDMI(1) and UDMI(2) as the mass and heat sources, respectively
 		{
-			C_UDMI(i_cell[iside], t_fluid[iside], 1) = mass_flux*WallCell[i][iside].area/WallCell[i][iside].volume;
-			C_UDMI(i_cell[iside], t_fluid[iside], 2) = latent_heat_flux*WallCell[i][iside].area/WallCell[i][iside].volume;
+			C_UDMI(i_cell[iside], t_fluid[iside], 1) = mass_flux*WallCell[i][iside].area/WallCell[i][iside].volume; // SM = JM*A/V
+			C_UDMI(i_cell[iside], t_fluid[iside], 2) = latent_heat_flux*WallCell[i][iside].area/WallCell[i][iside].volume; // SH = JH*A/V
 		}
 	}
-	Monitor_CellPair(1, rid++, 17);
+	Monitor_CellPair(1, rid++, 17); // output the 17th cell pair for monitor
 	return;
 }
 
