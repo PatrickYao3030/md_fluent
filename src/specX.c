@@ -298,13 +298,14 @@ DEFINE_ON_DEMAND(InterCellID_0923)
 	end_f_loop(i_face0, t_FeedInterface)
 }
 
-DEFINE_ON_DEMAND(AreaVec_0923)
+DEFINE_ON_DEMAND(WallCellProp_0923)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
 															                               density (rho)
 															                               enthalpy (h)
 															                               volume of the cell (vol)
+																														 area vector (A[])
 	[methods] get the properties by built-in macros 
 	[outputs] FLUENT command-line output
 */
