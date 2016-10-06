@@ -129,9 +129,9 @@ void MembraneTransfer(int opt)
 		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
 		{
 			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
-			break ;
+			break;
 		}
-		for (iside=0; iside<=1; iside++)
+		for (iside=0; iside<=1; iside++) // update the temperature and composition in workspace variable of WallCell
 		{
 			i_cell[iside] = WallCell[i][iside].index;
 			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
@@ -148,9 +148,6 @@ void MembraneTransfer(int opt)
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
-		//total_heat_flux = RevisedHeatFlux(total_heat_flux, C_R(i_cell[0], t_fluid[0])*C_VOLUME(i_cell[0], t_fluid[0]), C_CP(i_cell[0], t_fluid[0]), WallCell[i][0].temperature, WallCell[i][1].temperature);
-		//mass_flux = RevisedMassFlux(total_heat_flux, WallCell[i][0].temperature, WallCell[i][1].temperature);
-		//latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
 		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
 		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
@@ -409,10 +406,8 @@ DEFINE_ON_DEMAND(OutputCells_0913)
 DEFINE_ADJUST(calc_flux, domain)
 /*
 	[objectives] calculate the flux across the membrane
-	[methods] 1. get the temperatures and concentrations of the identified pair of wall cells
-	          2. calculate the permeation flux according to the given temperature and concentration
-	          3. calculate the permeative heat flux, here only latent heats are considered while the conjugated conductive heat transfer scheme is used.
-	          4. if the cell is overheated with the heat flux input, reset the permeation flux and go back to step 2
+	[methods] revoke the function of MembraneTransfer with argument 0 (for normal run)
+	                                                                1 (for debug run)
 	[outputs] 1. C_UDMI(1) for mass flux
 	          2. C_UDMI(2) for latent heat flux
 */
@@ -468,6 +463,7 @@ DEFINE_PROFILE(feedside_heat_flux, t_face, SettingVariable)
 	{
 		i_cell = F_C0(i_face, t_face);
 		cell_num = GetWID(i_cell);
+		if (cell_num == -1) Message("The cell#%d hasn't matched with the workspace.\n", i_cell);
 		for (iside = 0; iside<=1; iside++)
 		{
 			Tw[iside] = WallCell[cell_num][iside].temperature;
@@ -496,11 +492,12 @@ int GetWID(int searching_cell_index)
 		{
 			if (WallCell[i][iside].index == searching_cell_index)
 			{
+				Message("The adjacent wall cell #%d has allocated.\n", searching_cell_index);
 				result = i;
 				return result;
 			}
 		}
 	}
-	if (result = -1) Message("Internal error detected.\n");
+	if (result = -1) Message("[WARNING] None of cell index has been found in WallCell.\n");
 	return result;
 }
