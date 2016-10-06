@@ -443,9 +443,9 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
   return source;
 }
 
-DEFINE_PROFILE(feedside_heat_flux, t_face, SettingVariable)
+DEFINE_PROFILE(heat_flux, t_face, SettingVariable)
 /*
-	[objectives] set the heat flux for feedside inteface between the membrane and feeding fluid
+	[objectives] set the heat flux for either feed-side or permeate-side inteface between the membrane and feeding fluid
 	[methods] 1. Get the index of adhered cell
 	          2. Retrieve the cell number of workspace according to the cell index
 						3. Get the temperature pair
@@ -459,11 +459,24 @@ DEFINE_PROFILE(feedside_heat_flux, t_face, SettingVariable)
 	real Tw[2], wx[2];
 	int iside, cell_num;
 	real mass_flux, heat_flux;
+	real dir = 0.0;
+	if (THREAD_ID(t_face) == id_FeedInterface) 
+	{
+		dir = -1.0;
+	}
+	else if (THREAD_ID(t_face) == id_PermInterface)
+	{
+		dir = 1.0;
+	}
 	begin_f_loop(i_face, t_face)
 	{
 		i_cell = F_C0(i_face, t_face);
 		cell_num = GetWID(i_cell);
-		if (cell_num == -1) Message("The cell#%d hasn't matched with the workspace.\n", i_cell);
+		if (cell_num == -1) 
+		{
+			Message("The cell#%d hasn't matched with the workspace.\n", i_cell);
+			return;
+		}
 		for (iside = 0; iside<=1; iside++)
 		{
 			Tw[iside] = WallCell[cell_num][iside].temperature;
@@ -471,8 +484,7 @@ DEFINE_PROFILE(feedside_heat_flux, t_face, SettingVariable)
 		}
 		mass_flux = LocalMassFlux(Tw[0], Tw[1], wx[0], wx[1]);
 		heat_flux = LocalHeatFlux(10, Tw[0], Tw[1], mass_flux);
-		F_PROFILE(i_face, t_face, SettingVariable) = heat_flux;
-		Message("Heat flux of %g at the wall cell #%d \n", heat_flux, i_cell);
+		F_PROFILE(i_face, t_face, SettingVariable) = dir*heat_flux;
 	}
 	end_f_loop(i_face, t_face)
 }
@@ -492,7 +504,6 @@ int GetWID(int searching_cell_index)
 		{
 			if (WallCell[i][iside].index == searching_cell_index)
 			{
-				Message("The adjacent wall cell #%d has allocated.\n", searching_cell_index);
 				result = i;
 				return result;
 			}
