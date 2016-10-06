@@ -33,11 +33,16 @@ struct Components{
 	real water;
 	real salts;
 };
+struct Flux{
+	real mass;
+	real heat;
+};
 struct CellInfos{
 	int seq;
 	int index;
 	real centroid[ND_ND];
 	real temperature;
+	struct Flux flux;
 	struct Components massfraction;
 };
 struct MessageInfos{
