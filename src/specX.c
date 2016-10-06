@@ -196,6 +196,7 @@ real RevisedMassFlux(real JH, real t0, real t1) // reversely calculate the mass 
 	JM = JH/latent_heat;
 	return JM;
 }
+
 DEFINE_INIT(idf_cells, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
@@ -451,4 +452,61 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
   dS[eqn] = 0.;
   return source;
+}
+
+DEFINE_PROFILE(feedside_heat_flux, t_face, SettingVariable)
+/*
+	[objectives] set the heat flux for feedside inteface between the membrane and feeding fluid
+	[methods] 1. Get the index of adhered cell
+	          2. Retrieve the cell number of workspace according to the cell index
+						3. Get the temperature pair
+						4. Calculate the mass flux and total heat flux
+						5. Set the heat flux
+	[outputs] the boundary condition of heat flux 
+*/
+{
+	cell_t i_cell;
+	face_t i_face;
+	real Tw[2], wx[2];
+	int iside, cell_num;
+	real mass_flux, heat_flux;
+	begin_f_loop(i_face, t_face)
+	{
+		i_cell = F_C0(i_face, t_face);
+		cell_num = GetWID(i_cell);
+		for (iside = 0; iside<=1; iside++)
+		{
+			Tw[iside] = WallCell[cell_num][iside].temperature;
+			wx[iside] = WallCell[cell_num][iside].massfraction.water;
+		}
+		mass_flux = LocalMassFlux(Tw[0], Tw[1], wx[0], wx[1]);
+		heat_flux = LocalHeatFlux(10, Tw[0], Tw[1], mass_flux);
+		F_PROFILE(i_face, t_face, SettingVariable) = heat_flux;
+		Message("Heat flux of %g at the wall cell #%d \n", heat_flux, i_cell);
+	}
+	end_f_loop(i_face, t_face)
+}
+
+int GetWID(int searching_cell_index)
+/*
+	[objectives] Get the array index of workspace WallCell
+	[methods] for each element of cell index in the workspace, check with the given index
+	[outputs] if the index is equal to the given one, output the index; otherwise output the negative
+*/
+{
+	int result, i, iside;
+	result = -1;
+	for (i=0; i<MAXCELLNUM; i++)
+	{
+		for (iside=0; iside<=1; iside++)
+		{
+			if (WallCell[i][iside].index == searching_cell_index)
+			{
+				result = i;
+				return result;
+			}
+		}
+	}
+	if (result = -1) Message("Internal error detected.\n");
+	return result;
 }
