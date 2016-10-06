@@ -222,10 +222,8 @@ DEFINE_INIT(idf_cells, domain)
 	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
 	t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
 	t_PermInterface = Lookup_Thread(domain, id_PermInterface);
-	//fout0 = fopen("idf_cells0.out", "w");
-	//fout1 = fopen("idf_cells1.out", "w");
-	fout2 = fopen("idf_cell2.out", "w");
-	fout3 = fopen("idf_cell3.out", "w");
+	fout0 = fopen("idf_cell0.out", "w");
+	fout1 = fopen("idf_cell1.out", "w");
 
 	//if(!Data_Valid_P()) 
 	//{
@@ -236,10 +234,10 @@ DEFINE_INIT(idf_cells, domain)
 
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
-		i_cell0 = F_C0(i_face0, t_FeedInterface);
+		i_cell0 = F_C0(i_face0, t_FeedInterface); // get the index for the cell adjacent the 
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
-		WallCell[gid][0].index = i_cell0;
+		WallCell[gid][0].index = i_cell0; // output the cell info to the workspace variable WallCell
 		WallCell[gid][0].centroid[0] = loc0[0];
 		WallCell[gid][0].centroid[1] = loc0[1];
 		WallCell[gid][0].temperature = C_T(i_cell0, t_FeedFluid);
@@ -250,8 +248,7 @@ DEFINE_INIT(idf_cells, domain)
 			C_CENTROID(loc1, i_cell1, t_PermFluid);
 			if (fabs(loc0[0]-loc1[0])/loc0[0] < EPS) // In this special case, the pair of wall cells on both sides of membrane are symmetrical
 			{
-				fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
-				//C_UDMI(i_cell0, t_FeedFluid, 1) = i_cell1; // store the index of the found cell
+				fprintf(fout0, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
 				WallCell[gid][1].index = i_cell1;
 				WallCell[gid][1].centroid[0] = loc1[0];
 				WallCell[gid][1].centroid[1] = loc1[1];
@@ -264,7 +261,8 @@ DEFINE_INIT(idf_cells, domain)
 	}
 	end_f_loop(i_face0, t_FeedInterface)
 
-	//gid = 0; // reset the global index
+	Message("The workspace WallCell[%d] has been created.\n", gid);
+	Message("The identified wall cells, by using the feed-side enumeration, are summarized in idf_cell0.out.\n");
 
 	begin_f_loop(i_face1, t_PermInterface) // find the adjacent cells for the permeate-side membrane.
 	{
@@ -276,8 +274,7 @@ DEFINE_INIT(idf_cells, domain)
 			C_CENTROID(loc0, i_cell0, t_FeedFluid);
 			if (fabs(loc1[0]-loc0[0])/loc1[0] < EPS)
 			{
-				fprintf(fout3, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
-				//C_UDMI(i_cell1, t_PermFluid, 1) = i_cell0;
+				fprintf(fout1, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
 			}
 		}
 		end_f_loop(i_face1, t_PermInterface)
@@ -285,13 +282,10 @@ DEFINE_INIT(idf_cells, domain)
 	}
 	end_f_loop(i_face1, t_PermInterface)
 	
-	for (i = 0; i<9999; i++)
-		fprintf(fout2, "No.%d wall cell index %d located at %g %g with temperature of %g and mass fraction of %g, symmetric cell index %d at %g %g with temperature of %g and mass fraction of %g\n", i, WallCell[i][0].index, WallCell[i][0].centroid[0], WallCell[i][0].centroid[1], WallCell[i][0].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].index, WallCell[i][1].centroid[0], WallCell[i][1].centroid[1], WallCell[i][1].temperature, WallCell[i][1].massfraction.water);
-	
-	fclose(fout2);
-	fclose(fout3);
-	//fclose(fout0);
-	//fclose(fout1);
+	Message("The identified wall cells, by using the permeate-side enumeration, are summarized in redundant idf_cell1.out.\n");
+
+	fclose(fout0);
+	fclose(fout1);
 }
 
 DEFINE_ON_DEMAND(testGetDomain)
