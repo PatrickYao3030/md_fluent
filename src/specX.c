@@ -120,12 +120,7 @@ int UpdateWallCell(int opt)
 	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
 	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
 	{
-		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
-		{
-			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
-			result = -1;
-			return result;
-		}
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) break; // identify the end of workspace and jump out the for loop
 		for (iside=0; iside<=1; iside++) // update the temperature and composition in workspace variable of WallCell
 		{
 			i_cell[iside] = WallCell[i][iside].index;
@@ -133,8 +128,16 @@ int UpdateWallCell(int opt)
 			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
 		}
 	}
-	if (opt == 1) Message("WallCell[%d] has been updated.\n", i);
-	result = 1;
+	if (i == 0) 
+	{
+		Message("Workspace WallCell is empty. Run the INITIATION first\n");
+		result = -1;
+	}
+	else
+	{
+		if (opt == 1) Message("WallCell[%d] has been updated.\n", i);
+		result = 1;
+	}
 	return result;
 }
 
@@ -220,7 +223,7 @@ real RevisedMassFlux(real JH, real t0, real t1) // reversely calculate the mass 
 	return JM;
 }
 
-DEFINE_INIT(idf_cells, domain)
+DEFINE_INIT(idf_cells_1007, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
                 2. find the corresponding cells with the same x-coordinate
@@ -429,7 +432,7 @@ DEFINE_ON_DEMAND(OutputCells_0913)
 	return;
 }
 
-DEFINE_ADJUST(calc_flux, domain)
+DEFINE_ADJUST(calc_flux_1008, domain)
 /*
 	[objectives] calculate the flux across the membrane
 	[methods] 1. update the workspace WallCell
@@ -438,7 +441,10 @@ DEFINE_ADJUST(calc_flux, domain)
 	[outputs] same as MembraneTransfer()
 */
 {
-	if (UpdateWallCell(1) == 1) MembraneTransfer(0);
+	int flag = 0;
+	flag = UpdateWallCell(1);
+	//Message("UpdateWallCell() returns a flag of %d.\n", flag);
+	if (flag == 1) MembraneTransfer(0);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
@@ -469,7 +475,7 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
   return source;
 }
 
-DEFINE_PROFILE(heat_flux, t_face, SettingVariable)
+DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 /*
 	[objectives] set the heat flux for either feed-side or permeate-side inteface between the membrane and feeding fluid
 	[methods] 1. Get the index of adhered cell
