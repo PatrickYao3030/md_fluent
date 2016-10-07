@@ -54,17 +54,17 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 	return;
 }
 
-real LocalMassFlux(real tw0, real tw1, real ww0, real ww1)
+real LocalMassFlux(real tw0, real tw1, real ww0, real ww1) // if tw0 > tw1, the mass_flux should be positive, or vice versa
 {
-	real result = 0.;
+	real JM = 0.;
 	real drv_force = 0., resistance = 0.;
 	real avg_temp = 0.;
 	avg_temp = .5*(tw0+tw1);
 	GetProp_Membrane(avg_temp);
 	drv_force = psat_h2o(tw0)-psat_h2o(tw1);
 	resistance = 1./membrane.MDcoeff;
-	result = drv_force/resistance; // use SI unit (kg/m2-s)
-	return result;
+	JM = drv_force/resistance; // use SI unit (kg/m2-s)
+	return JM;
 }
 
 real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1, the mass_flux should be positive, then the output should also be positive, otherwise the negative result should be returned
@@ -80,29 +80,36 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 	real avg_temp = 0., diff_temp = 0.;
 	real latent_heat = 0.;
 	real heat_flux_0 = 0., heat_flux_1 = 0.;
-	real result = 0.;
-	avg_temp = .5*(tw0+tw1);
-	diff_temp = tw0-tw1;
-	GetProp_Membrane(avg_temp);
-	latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
-	heat_flux_0 = latent_heat*mass_flux; // latent heat flux
-	heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
-	switch(opt)
+	real JH = 0.;
+	if (((tw0>tw1) && (mass_flux>0)) || ((tw0<tw1) && (mass_flux<0))) // the sign of mass_flux should be same as tw0-tw1
 	{
-	case 0:
-		result = heat_flux_0; // (W/m2), consider the latent heat flux only
-		break;
-	case 1:
-		result = heat_flux_1; // (W/m2), consider the conductive heat flux only
-		break;
-	case 10:
-		result = heat_flux_0+heat_flux_1;
-		break;
-	default:
-		result = 0.;
-		break;
-	} 
-	return result;
+		avg_temp = .5*(tw0+tw1);
+		diff_temp = tw0-tw1;
+		GetProp_Membrane(avg_temp);
+		latent_heat = LatentHeat(avg_temp); // in the unit of (J/kg)
+		heat_flux_0 = latent_heat*mass_flux; // latent heat flux
+		heat_flux_1 = membrane.conductivity/membrane.thickness*diff_temp; // conductive heat flux
+		switch(opt)
+		{
+		case 0:
+			JH = heat_flux_0; // (W/m2), consider the latent heat flux only
+			break;
+		case 1:
+			JH = heat_flux_1; // (W/m2), consider the conductive heat flux only
+			break;
+		case 10:
+			JH = heat_flux_0+heat_flux_1;
+			break;
+		default:
+			JH = 0.;
+			break;
+		}
+	}
+	else
+	{
+		Message("[ERROR] Mass flux has a wrong direction \n");
+	}
+	return JH;
 }
 
 void MembraneTransfer(int opt)
@@ -124,9 +131,9 @@ void MembraneTransfer(int opt)
 	Domain *domain = Get_Domain(id_domain);
 	t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
 	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
-	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
+	for (i=0; i<MAXCELLNUM; i++) 
 	{
-		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) // check the pre-existed workspace
 		{
 			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
 			break;
@@ -154,7 +161,7 @@ void MembraneTransfer(int opt)
 		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
 	}
-	Monitor_CellPair(1, rid++, 17);
+	Monitor_CellPair(1, rid++, 17); // output the 17th cell pair for monitor
 	return;
 }
 
@@ -176,6 +183,7 @@ DEFINE_INIT(idf_cells_1007, domain)
 	Thread *t_FeedInterface, *t_PermInterface;
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
+	real InterfaceArea[ND_ND];
 	int i = 0;
 	real temp = 0.0;
 
@@ -202,6 +210,9 @@ DEFINE_INIT(idf_cells_1007, domain)
 		WallCell[gid][0].centroid[0] = loc0[0];
 		WallCell[gid][0].centroid[1] = loc0[1];
 		WallCell[gid][0].temperature = C_T(i_cell0, t_FeedFluid);
+		WallCell[gid][0].volume = C_VOLUME(i_cell0, t_FeedFluid);
+		F_AREA(InterfaceArea, i_face0, t_FeedInterface);
+		WallCell[gid][0].area = NV_MAG(InterfaceArea);
 		WallCell[gid][0].massfraction.water = C_YI(i_cell0, t_FeedFluid, 0);
 		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
 		{
@@ -214,6 +225,9 @@ DEFINE_INIT(idf_cells_1007, domain)
 				WallCell[gid][1].centroid[0] = loc1[0];
 				WallCell[gid][1].centroid[1] = loc1[1];
 				WallCell[gid][1].temperature = C_T(i_cell1, t_PermFluid);
+				WallCell[gid][1].volume = C_VOLUME(i_cell1, t_PermFluid);
+				F_AREA(InterfaceArea, i_face1, t_PermInterface);
+				WallCell[gid][1].area = NV_MAG(InterfaceArea);
 				WallCell[gid][1].massfraction.water = C_YI(i_cell1, t_PermFluid, 0);
 			}
 		}
@@ -249,7 +263,7 @@ DEFINE_INIT(idf_cells_1007, domain)
 	fclose(fout1);
 }
 
-DEFINE_ON_DEMAND(testGetDomain)
+DEFINE_ON_DEMAND(InterCellID_0923)
 {
 	cell_t i_cell, i_cell0, i_cell1;
 	face_t i_face0, i_face1;
@@ -274,20 +288,21 @@ DEFINE_ON_DEMAND(testGetDomain)
 	{
 		i_cell0 = F_C0(i_face0, t_FeedInterface);
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		Message("interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
+		Message("Feed-side interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
 		gid++;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
 }
 
-DEFINE_ON_DEMAND(testGetProp)
+DEFINE_ON_DEMAND(WallCellProp_0923)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
 															                               density (rho)
 															                               enthalpy (h)
 															                               volume of the cell (vol)
+																														 area vector (A[])
 	[methods] get the properties by built-in macros 
 	[outputs] FLUENT command-line output
 */
@@ -388,7 +403,7 @@ DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 1)/0.5e-3; // mass source of the cell relates to the ratio of permeation flux and cell's height (0.5mm)
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 1); // UDMI(0) = (+1/0/-1) and UDMI(1) stores the positive mass source
   dS[eqn] = 0.;
   return source;
 }
@@ -402,7 +417,7 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
 */
 {
 	real source; // returning result
-	source = fabs(C_UDMI(i_cell, t_cell, 0))*C_UDMI(i_cell, t_cell, 2)/0.5e-3; // heat source of the cell relates to the ratio of heat flux and cell's height (0.5mm)
+	source = C_UDMI(i_cell, t_cell, 0)*C_UDMI(i_cell, t_cell, 2); // UDMI(0) = (+1/0/-1) and UDMI(2) stores the positive heat source
   dS[eqn] = 0.;
   return source;
 }
