@@ -133,6 +133,7 @@ int UpdateWallCell(int opt)
 			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
 		}
 	}
+	if (opt == 1) Message("WallCell[%d] has been updated.\n", i);
 	result = 1;
 	return result;
 }
@@ -437,8 +438,7 @@ DEFINE_ADJUST(calc_flux, domain)
 	[outputs] same as MembraneTransfer()
 */
 {
-	UpdateWallCell(0);
-	MembraneTransfer(0);
+	if (UpdateWallCell(1) == 1) MembraneTransfer(0);
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
