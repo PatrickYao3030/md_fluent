@@ -158,43 +158,7 @@ void MembraneTransfer(int opt)
 	return;
 }
 
-real RevisedHeatFlux(real JH, real m, real cp, real t0, real tref) // if the overheat happens, it will return a revised heat flux (either being exothermal or endothermal) 
-/*
-	[objectives] calculate max heat flux, exerted into the wall cell
-	[methods] 1. calculate the heat flow
-	          2. calculate the temperature change according to the exerted sensible heat
-						3. if cell temperature is lower than the permeate-side one, or vise versa, overheat/cool happens.
-	[outputs]    heat flux [J/m2-s]
-*/
-{
-	real result = 0;
-	real q = 0., t = 0.;
-	real A = 0.5e-3;
-	q = JH*A;
-	t = t0-q/(m*cp);  
-	if (q*(t-tref)<0.) // with the absorbed heat (q>0), the calculated temperature (t) should be lower than the referred one (tref); with the released heat (q<0), t > tref
-	{
-		if (id_message >= 3) Message("[Overheat/cool warning] The heat flux of %g should be revised to %g.\n", JH, m*cp*(t0-tref)/A);
-		result = m*cp*(t0-tref)/A;
-	}
-	else
-	{
-		result = m*cp*(t0-t)/A; // normal status
-	}
-	return result;
-}
-
-real RevisedMassFlux(real JH, real t0, real t1) // reversely calculate the mass flux with the heat flux
-{
-	extern real LatentHeat();
-	real latent_heat = 0., tm = 0., JM = 0.;
-	tm = .5*(t0+t1);
-	latent_heat = LatentHeat(tm); // in the unit of (J/kg)
-	JM = JH/latent_heat;
-	return JM;
-}
-
-DEFINE_INIT(idf_cells, domain)
+DEFINE_INIT(idf_cells_1007, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
                 2. find the corresponding cells with the same x-coordinate
@@ -403,7 +367,7 @@ DEFINE_ON_DEMAND(OutputCells_0913)
 	return;
 }
 
-DEFINE_ADJUST(calc_flux, domain)
+DEFINE_ADJUST(calc_flux_1007, domain)
 /*
 	[objectives] calculate the flux across the membrane
 	[methods] revoke the function of MembraneTransfer with argument 0 (for normal run)
@@ -443,7 +407,7 @@ DEFINE_SOURCE(heat_source, i_cell, t_cell, dS, eqn)
   return source;
 }
 
-DEFINE_PROFILE(heat_flux, t_face, SettingVariable)
+DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 /*
 	[objectives] set the heat flux for either feed-side or permeate-side inteface between the membrane and feeding fluid
 	[methods] 1. Get the index of adhered cell
