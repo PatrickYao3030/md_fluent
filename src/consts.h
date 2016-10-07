@@ -1,3 +1,4 @@
+#define MAXRECLINE 99999
 #define MAXCELLNUM 9999
 #define EPS 5.0e-4
 #define PVDF 0
@@ -16,9 +17,10 @@
    Lvl.0 stands for serious problems needed care
 	 Lvl.1            warnings
 	 Lvl.2            minor messages
+	 Lvl.3            debug messages
 	 these messages are controled to be display by the switch of id_message
 */
-#define id_message 1
+#define id_message 2
 
 struct PorousMaterials{
 	real thickness;
@@ -31,11 +33,19 @@ struct Components{
 	real water;
 	real salts;
 };
+struct Flux{
+	real mass;
+	real heat;
+};
 struct CellInfos{
 	int seq;
 	int index;
 	real centroid[ND_ND];
 	real temperature;
+	struct Flux flux;
 	struct Components massfraction;
 };
-
+struct MessageInfos{
+	int flag;
+	char content[79];
+};
