@@ -105,14 +105,45 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 	return result;
 }
 
+int UpdateWallCell(int opt)
+/*
+	[objectives] get the new temperatures and concentration of wall cells in the workspace
+	[methods] get the temperature and concentration for each wall cell
+	[outputs] the updated workspace
+*/
+{
+	int i = 0, iside = 0, result = 0;
+	cell_t i_cell[2];
+	Thread *t_fluid[2];
+	Domain *domain = Get_Domain(id_domain);
+	t_fluid[0] = Lookup_Thread(domain, id_FeedFluid);
+	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
+	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
+	{
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
+		{
+			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
+			result = -1;
+			return result;
+		}
+		for (iside=0; iside<=1; iside++) // update the temperature and composition in workspace variable of WallCell
+		{
+			i_cell[iside] = WallCell[i][iside].index;
+			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
+			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
+		}
+	}
+	result = 1;
+	return result;
+}
+
 void MembraneTransfer(int opt)
 /*
 	[objectives] calculate the md heat and mass transfer across the membrane
-	[methods] 1. get the flow field adhered on the both sides of the membrane and store them into the constructed workspace "WallCell"
-	          2. calculate the permeation flux according to the temperature differences
-						3. calculate the heat flux according to the mass flux
-						4. if the exerted heat causes the overcool/heat, revise the mass flux
-						5. revise the latent heat flux according to the revised mass flux
+	[methods] 1. calculate the permeation flux according to the temperature differences
+						2. calculate the heat flux according to the mass flux
+						3. store the fluxes in the workspace
+						4. set the C_UDMI(1) as permeation flux, and C_UDMI(2) as the total heat flux
 	[outputs] 1. permeation flux in C_UDMI(1)
 	          2. heat flux in C_UDMI(2)
 */
@@ -126,17 +157,6 @@ void MembraneTransfer(int opt)
 	t_fluid[1] = Lookup_Thread(domain, id_PermFluid);
 	for (i=0; i<MAXCELLNUM; i++) // get the T and YI(0) of the wall cells
 	{
-		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) 
-		{
-			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
-			break;
-		}
-		for (iside=0; iside<=1; iside++) // update the temperature and composition in workspace variable of WallCell
-		{
-			i_cell[iside] = WallCell[i][iside].index;
-			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
-			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
-		}
 		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
 		{
 			mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
@@ -149,6 +169,11 @@ void MembraneTransfer(int opt)
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
+		for (iside=0; iside<=1; iside++)
+		{
+			WallCell[i][0].flux.mass = mass_flux;
+			WallCell[i][1].flux.heat = total_heat_flux;
+		}
 		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
 		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
 		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
@@ -406,12 +431,13 @@ DEFINE_ON_DEMAND(OutputCells_0913)
 DEFINE_ADJUST(calc_flux, domain)
 /*
 	[objectives] calculate the flux across the membrane
-	[methods] revoke the function of MembraneTransfer with argument 0 (for normal run)
-	                                                                1 (for debug run)
-	[outputs] 1. C_UDMI(1) for mass flux
-	          2. C_UDMI(2) for latent heat flux
+	[methods] 1. update the workspace WallCell
+	          2. revoke the function of MembraneTransfer() with argument 0 (for normal run)
+	                                                                     1 (for debug run)
+	[outputs] same as MembraneTransfer()
 */
 {
+	UpdateWallCell(0);
 	MembraneTransfer(0);
 }
 
