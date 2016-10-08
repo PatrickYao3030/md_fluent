@@ -47,7 +47,7 @@ void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
 	if ((rec_idx >= 0) && (rec_idx <= MAXRECLINE))
 	{
 		CellPairInfo[rec_idx].flag = opt;
-		sprintf(str_line_buffer, "TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
+		sprintf(str_line_buffer, "T0 = %g, T1 = %g, JMLOC0 = %g, JH0 = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature, WallCell[idx_cells][0].flux.mass, WallCell[idx_cells][0].flux.heat);
 		//Message("TF = %g, TP = %g", WallCell[idx_cells][0].temperature, WallCell[idx_cells][1].temperature);
 		strcpy(CellPairInfo[rec_idx].content, str_line_buffer);
 	}
@@ -158,6 +158,8 @@ void MembraneTransfer(int opt)
 		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
 		for (iside=0; iside<=1; iside++) // set the UDMI(1) and UDMI(2) as the mass and heat sources, respectively
 		{
+			WallCell[i][iside].flux.mass = mass_flux;
+			WallCell[i][iside].flux.heat = total_heat_flux;
 			C_UDMI(i_cell[iside], t_fluid[iside], 1) = mass_flux*WallCell[i][iside].area/WallCell[i][iside].volume; // SM = JM*A/V
 			C_UDMI(i_cell[iside], t_fluid[iside], 2) = latent_heat_flux*WallCell[i][iside].area/WallCell[i][iside].volume; // SH = JH*A/V
 		}
