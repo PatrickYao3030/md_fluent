@@ -105,9 +105,9 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 			break;
 		}
 	}
-	else
+	else if (tw0!=tw1)
 	{
-		Message("[ERROR] Mass flux has a wrong direction \n");
+		Message("[ERROR] Mass flux has a wrong direction. ERR%g/%g/%g \n", mass_flux, tw0, tw1);
 	}
 	return JH;
 }
@@ -156,10 +156,11 @@ void MembraneTransfer(int opt)
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		if (id_message+opt > 2) Message("Cell pair of #%d and #%d: T = (%g, %g) K, with JM = %g, and JH_c = %g, JH_v = %g \n", i_cell[0], i_cell[1], WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux, conductive_heat_flux, latent_heat_flux);
-		C_UDMI(i_cell[0], t_fluid[0], 1) = -mass_flux;
-		C_UDMI(i_cell[0], t_fluid[0], 2) = -latent_heat_flux;
-		C_UDMI(i_cell[1], t_fluid[1], 1) = mass_flux;
-		C_UDMI(i_cell[1], t_fluid[1], 2) = latent_heat_flux;
+		for (iside=0; iside<=1; iside++) // set the UDMI(1) and UDMI(2) as the mass and heat sources, respectively
+		{
+			C_UDMI(i_cell[iside], t_fluid[iside], 1) = mass_flux*WallCell[i][iside].area/WallCell[i][iside].volume; // SM = JM*A/V
+			C_UDMI(i_cell[iside], t_fluid[iside], 2) = latent_heat_flux*WallCell[i][iside].area/WallCell[i][iside].volume; // SH = JH*A/V
+		}
 	}
 	Monitor_CellPair(1, rid++, 17); // output the 17th cell pair for monitor
 	return;
@@ -475,8 +476,7 @@ int GetWID(int searching_cell_index)
 	[outputs] if the index is equal to the given one, output the index; otherwise output the negative
 */
 {
-	int result, i, iside;
-	result = -1;
+	int result=-1, i=0, iside=0;
 	for (i=0; i<MAXCELLNUM; i++)
 	{
 		for (iside=0; iside<=1; iside++)
