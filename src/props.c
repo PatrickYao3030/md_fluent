@@ -189,3 +189,34 @@ real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
 	return vp;
 }
+
+real Density_aqNaCl(real T, real w)
+/*
+	[objs] correlate the density of aqueous NaCl solution
+	[meth] empirical correlation by B.S. Sparrow, Desalination 2003, 159(2): 161-170
+	[outs] density in SI (kg/m3)
+*/
+{
+	int i = 0;
+	real rho=0., sum_A=0., sum_B=0., sum_C=0., sum_D=0., sum_E=0.;
+	real A[5] = {1.001, 0.7666, -0.0149, 0.2663, 0.8845};
+	real B[5] = {-0.0214, -3.496, 10.02, -6.56, -31.37};
+	real C[5] = {-5.263, 39.87, 176.2, 363.5, -7.784};
+	real D[5] = {15.42,-167.0, 980.7, -2573.0, 876.6};
+	real E[5] = {-0.0276, 0.2978, -2.017, 6.345, -3.914};
+	for (i=0; i<5; i++)
+	{
+		sum_A = sum_A+A[i]*pow(w, i);
+		sum_B = sum_B+B[i]*pow(w, i);
+		sum_C = sum_C+C[i]*pow(w, i);
+		sum_D = sum_D+D[i]*pow(w, i);
+		sum_E = sum_E+E[i]*pow(w, i);
+	}
+	sum_A = sum_A*1.e3;
+	sum_B = sum_B*1.e0;
+	sum_C = sum_B*1.e-3;
+	sum_D = sum_D*1.e-6;
+	sum_E = sum_E*1.e-6;
+	rho = sum_A*pow(T,0)+sum_B*pow(T,1)+sum_C*pow(T,2)+sum_D*pow(T,3)+sum_E*pow(T,4);
+	return rho;
+}
