@@ -136,3 +136,54 @@ DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
 //				return cp;
 //}
 */
+
+real ConvertX(int imat, int nmat, real MW[], real wi[])
+/*
+	[objs] convert the mass fraction of component imat into the molar fraction
+	[meth] allocate a dynamic array for temporary storage
+	       calculate the mole for each component
+				 calculate the molar fraction for the specified index in the array
+	[outs] molar fraction
+*/
+{
+	real *r;
+	real sum_N = 0., xi = 0.;
+	int i;
+	r = (real*)malloc(nmat*sizeof(real));
+	for (i=0; i<nmat; i++) 
+	{
+		r[i] = wi[i]/MW[i];
+		sum_N = sum_N+r[i];
+	}
+	xi = r[imat]/sum_N;
+	free(r);
+	return xi;
+}
+
+real ActivityCoefficient_h2o(x_nv)
+/*
+	[objs] correlate the activity coefficient in an aqueous sodium chloride solution
+	[meth] use the correlation proposed by Lawson and Lloyd
+	[outs] dimensionless activity coefficent
+*/
+{
+	real alpha_h2o;
+	alpha_h2o = 1.-0.5*x_nv-10.*pow(x_nv, 2.);
+	return alpha_h2o;
+}
+
+real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
+/*
+	[Objectives] calculate the vapor pressure for the specified component
+	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components
+	          2. calculate the activity coefficient according to Lawson and Lloyd's correlation
+						3. get the water vapor pressure by invoking psat_h2o
+	[outputs] vapor pressure in SI (Pa)
+*/
+{
+	real x_nv, alpha, vp, MW[2] = {18.0, 40.0}, wi[2] = {mass_fraction_h2o, 1.-mass_fraction_h2o};
+	x_nv = 1.-ConvertX(0, 2, MW, wi);
+	alpha = ActivityCoefficient_h2o(x_nv);
+	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
+	return vp;
+}
