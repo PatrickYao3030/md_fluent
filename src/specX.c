@@ -23,7 +23,7 @@ struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[MAXRECLINE];
 
-extern real SatConc(), ThermCond_Maxwell(), psat_h2o(), LatentHeat();
+extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat();
 
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
@@ -61,7 +61,7 @@ real LocalMassFlux(real tw0, real tw1, real ww0, real ww1) // if tw0 > tw1, the 
 	real avg_temp = 0.;
 	avg_temp = .5*(tw0+tw1);
 	GetProp_Membrane(avg_temp);
-	drv_force = psat_h2o(tw0)-psat_h2o(tw1);
+	drv_force = WaterVaporPressure_brine(tw0, ww0)-WaterVaporPressure_brine(tw1, ww1);
 	resistance = 1./membrane.MDcoeff;
 	JM = drv_force/resistance; // use SI unit (kg/m2-s)
 	return JM;

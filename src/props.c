@@ -181,7 +181,9 @@ real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 	[outputs] vapor pressure in SI (Pa)
 */
 {
-	real x_nv, alpha, vp, MW[2] = {18.0, 40.0}, wi[2] = {mass_fraction_h2o, 1.-mass_fraction_h2o};
+	real x_nv, alpha, vp, MW[2] = {18.0, 40.0}, wi[2];
+	wi[1] = mass_fraction_h2o;
+	wi[2] = 1.-mass_fraction_h2o;
 	x_nv = 1.-ConvertX(0, 2, MW, wi);
 	alpha = ActivityCoefficient_h2o(x_nv);
 	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
