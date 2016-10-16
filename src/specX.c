@@ -23,7 +23,7 @@ struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[MAXRECLINE];
 
-extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat();
+extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat(), Density_aqNaCl();
 
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
@@ -469,6 +469,22 @@ DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 		F_PROFILE(i_face, t_face, SettingVariable) = dir*heat_flux;
 	}
 	end_f_loop(i_face, t_face)
+}
+
+DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
+/*
+	[objectives] set the density
+	[methods] 1. get the cell's temperature and mass fraction of NaCl
+	          2. invoke the Density_aqNaCl()
+						3. set the calculated density
+	[outputs] density of aqueous NaCl solution
+*/
+{
+	real T, w_nv, rho = 0.;
+	T = C_T(i_cell, t_cell);
+	w_nv = C_YI(i_cell, t_cell, 1);
+	rho = Density_aqNaCl(T, w_nv);
+	return rho;
 }
 
 int GetWID(int searching_cell_index)

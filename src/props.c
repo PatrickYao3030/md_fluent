@@ -97,13 +97,13 @@ DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
 	return result;
 }
 
-DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
-{
-	real result;
-	real conc_d = C_YI(c,t,1);
-	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
-	return result;
-}
+//DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
+//{
+//	real result;
+//	real conc_d = C_YI(c,t,1);
+//	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
+//	return result;
+//}
 DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
 {
 	real result,xa,tem;
