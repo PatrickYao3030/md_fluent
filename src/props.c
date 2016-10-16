@@ -97,51 +97,6 @@ real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (
 //	return result;
 //}
 
-//DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
-//{
-//	real result;
-//	real conc_d = C_YI(c,t,1);
-//	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
-//	return result;
-//}
-DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
-{
-	real result;
-	real temp_v = C_T(c,t);
-	real conc_v = C_YI(c,t,1);
-	result=(17.02821-0.39206*(temp_v-273.15)+0.188912*(conc_v*100)-0.00466*(temp_v-273.15)*(conc_v*100)+0.003025*(temp_v-273.15)*(temp_v-273.15)+0.011738*(conc_v*100)*(conc_v*100))*0.001;
-	return result;
-}
-<<<<<<< .mine
-//	return result;
-//}
-=======
-
-
->>>>>>> .theirs
-/*
-//[Problems] can not obtain the right mass fraction, making cp value remain constant of 4181.4//
-//DEFINE_SPECIFIC_HEAT(Specific_heat0, T, Tref, h, yi)//result of Polynomial fitting, original data is from 化学化工物性数据手册p494
-//{
-//	Domain *domain = Get_Domain(id_domain);
-//	Thread *t;
-//	cell_t c;
-//	real xm;
-//	real cp=0.;
-//	thread_loop_c(t, domain)
-//{
-//	begin_c_loop(c, t)
-//	{
-//		xm= C_YI(c, t,1);
-//		cp= (4.3876*xm*xm - 4.8591*xm + 4.1814)*1000;
-//		*h=cp*(T-Tref);
-//	}
-//	end_c_loop(c, t);
-//}
-//				return cp;
-//}
-*/
-
 real ConvertX(int imat, int nmat, real MW[], real wi[])
 /*
 	[objs] convert the mass fraction of component imat into the molar fraction
@@ -221,4 +176,16 @@ real Density_aqNaCl(real T, real w)
 		sum += B[i]*C[i]*pow(T, i);
 	}
 	return sum;
+}
+
+real Viscosity_aqNaCl(real T, real w_nv)
+/*
+	[objs] calculate the viscosity of aq NaCl solution for given T [C] and mass fraction of NaCl [?]
+	[meth] ref. ??? from LST's codes
+	[outs] viscosity [? SI]
+*/
+{
+	real mu;
+	mu = (17.02821-0.39206*T+0.188912*(conc_v*100)-0.00466*T*(conc_v*100)+0.003025*T*T+0.011738*(conc_v*100)*(conc_v*100))*0.001;
+	return mu;
 }
