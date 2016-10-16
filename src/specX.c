@@ -481,8 +481,8 @@ DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
 */
 {
 	real T, w_nv, rho = 0.;
-	T = C_T(i_cell, t_cell);
-	w_nv = C_YI(i_cell, t_cell, 1);
+	T = C_T(i_cell, t_cell)-273.15; // celcius degree
+	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
 	rho = Density_aqNaCl(T, w_nv);
 	return rho;
 }

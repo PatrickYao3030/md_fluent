@@ -206,6 +206,7 @@ real Density_aqNaCl(real T, real w)
 									{-0.0276, 0.2978, -2.017, 6.345, -3.914}};
 	real B[5] = {0., 0., 0., 0., 0.};
 	real C[5] = {1.e3, 1.e0, 1.e-3, 1.e-6, 1.e-6};
+	if ((T<0.)||(T>300.) return sum;
 	for (i=0; i<5; i++)
 	{
 		for (j=0; j<5; j++)
