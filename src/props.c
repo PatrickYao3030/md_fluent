@@ -88,32 +88,32 @@ real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (
 		   2. calculate the properties with the given temperature/mass fraction and property function
 [outputs]  the properties of materials
 */
-DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
-{
-	real result;
-	real temp_tca = C_T(c,t);
-	real conc_tca = C_YI(c,t,1);
-	result = (0.608+(7.46e-4)*(temp_tca-273.15))*(1-0.98*(18*conc_tca/(58.5-40.5*conc_tca)));
-	return result;
-}
+//DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
+//{
+//	real result;
+//	real temp_tca = C_T(c,t);
+//	real conc_tca = C_YI(c,t,1);
+//	result = (0.608+(7.46e-4)*(temp_tca-273.15))*(1-0.98*(18*conc_tca/(58.5-40.5*conc_tca)));
+//	return result;
+//}
 
-DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
-{
-	real result;
-	real conc_d = C_YI(c,t,1);
-	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
-	return result;
-}
-DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
-{
-	real result,xa,tem;
-	real temp_v = C_T(c,t);
-	real conc_v = C_YI(c,t,1);
-	xa=(18*conc_v/(58.5-40.5*conc_v));
-	tem=temp_v-273.15;
-	result=(8.7e-4-6.3e-6*tem)*(1+12.9*xa);
-	return result;
-}
+//DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
+//{
+//	real result;
+//	real conc_d = C_YI(c,t,1);
+//	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
+//	return result;
+//}
+//DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
+//{
+//	real result,xa,tem;
+//	real temp_v = C_T(c,t);
+//	real conc_v = C_YI(c,t,1);
+//	xa=(18*conc_v/(58.5-40.5*conc_v));
+//	tem=temp_v-273.15;
+//	result=(8.7e-4-6.3e-6*tem)*(1+12.9*xa);
+//	return result;
+//}
 /*
 //[Problems] can not obtain the right mass fraction, making cp value remain constant of 4181.4//
 //DEFINE_SPECIFIC_HEAT(Specific_heat0, T, Tref, h, yi)//result of Polynomial fitting, original data is from 化学化工物性数据手册p494
@@ -188,4 +188,31 @@ real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 	alpha = ActivityCoefficient_h2o(x_nv);
 	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
 	return vp;
+}
+
+real Density_aqNaCl(real T, real w)
+/*
+	[objs] correlate the density of aqueous NaCl solution
+	[meth] empirical correlation by B.S. Sparrow, Desalination 2003, 159(2): 161-170
+	[outs] density in SI (kg/m3)
+*/
+{
+	int i = 0;
+	real sum = 0.;
+	real A[5][5] = {{1.001, 0.7666, -0.0149, 0.2663, 0.8845};
+	                {-0.0214, -3.496, 10.02, -6.56, -31.37},
+	                {-5.263, 39.87, 176.2, 363.5, -7.784},
+	                {15.42,-167.0, 980.7, -2573.0, 876.6},
+									{-0.0276, 0.2978, -2.017, 6.345, -3.914}};
+	real B[5] = {0., 0., 0., 0., 0.};
+	real C[5] = {1.e3, 1.e0, 1.e-3, 1.e-6, 1.e-6};
+	for (i=0; i<5; i++)
+	{
+		for (j=0; j<5; j++)
+		{
+			B[i] += A[i][j]*pow(w, j);
+		}
+		sum += B[i]*C[i]*pow(T, i);
+	}
+	return sum;
 }
