@@ -76,26 +76,13 @@ real LatentHeat(real t) // latent heat in water evaporation/condensation for giv
 	result = 1.e+3*(1.7535*t+2024.3); // use SI unit (J/kg)
 	return result;
 }
+
 real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (K) and concentration (w%)
 {
 	real result=0.;
 	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
 	return result;
 }
-/*
-[Objectives] define the propertis in terms of temperature or mass fraction 
-[methods]  1. obtain the temperature and mass fraction of the cell
-		   2. calculate the properties with the given temperature/mass fraction and property function
-[outputs]  the properties of materials
-*/
-//DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
-//{
-//	real result;
-//	real temp_tca = C_T(c,t);
-//	real conc_tca = C_YI(c,t,1);
-//	result = (0.608+(7.46e-4)*(temp_tca-273.15))*(1-0.98*(18*conc_tca/(58.5-40.5*conc_tca)));
-//	return result;
-//}
 
 real ConvertX(int imat, int nmat, real MW[], real wi[])
 /*
