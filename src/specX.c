@@ -23,7 +23,7 @@ struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[MAXRECLINE];
 
-extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat(), Density_aqNaCl();
+extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat(), Density_aqNaCl(), Viscosity_aqNaCl();
 
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
@@ -473,7 +473,7 @@ DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 
 DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
 /*
-	[objectives] set the density
+	[objectives] set the fluid density
 	[methods] 1. get the cell's temperature and mass fraction of NaCl
 	          2. invoke the Density_aqNaCl()
 						3. set the calculated density
@@ -485,6 +485,22 @@ DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
 	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
 	rho = Density_aqNaCl(T, w_nv);
 	return rho;
+}
+
+DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
+/*
+	[objs] set the fluid viscosity
+	[meth] 1. get the cell's temperature and mass fraction of NaCl
+	       2. invoke the Viscosity_aqNaCl()
+				 3. set the calculated viscosity with the empirical correlation
+	[outs] density of aqueous NaCl solution
+*/
+{
+	real T, w_nv, mu = 0.;
+	T = C_T(i_cell, t_cell)-273.15; // celcius degree
+	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+	mu = Viscosity_aqNaCl(T, w_nv);
+	return mu;
 }
 
 int GetWID(int searching_cell_index)
