@@ -23,7 +23,7 @@ struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[MAXRECLINE];
 
-extern real SatConc(), ThermCond_Maxwell(), psat_h2o(), LatentHeat();
+extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat(), Density_aqNaCl(), Viscosity_aqNaCl(), ThermCond_aq();
 
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
@@ -61,7 +61,7 @@ real LocalMassFlux(real tw0, real tw1, real ww0, real ww1) // if tw0 > tw1, the 
 	real avg_temp = 0.;
 	avg_temp = .5*(tw0+tw1);
 	GetProp_Membrane(avg_temp);
-	drv_force = psat_h2o(tw0)-psat_h2o(tw1);
+	drv_force = WaterVaporPressure_brine(tw0, ww0)-WaterVaporPressure_brine(tw1, ww1);
 	resistance = 1./membrane.MDcoeff;
 	JM = drv_force/resistance; // use SI unit (kg/m2-s)
 	return JM;
@@ -105,9 +105,9 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 			break;
 		}
 	}
-	else if (tw0!=tw1)
+	else if ((tw0!=tw1) && (id_message<2))
 	{
-		Message("[ERROR] Mass flux has a wrong direction. ERR%g/%g/%g \n", mass_flux, tw0, tw1);
+		Message("[WARNING] Mass flux has a wrong direction. ERR%g/%g/%g \n", mass_flux, tw0, tw1);
 	}
 	return JH;
 }
@@ -298,7 +298,7 @@ DEFINE_ON_DEMAND(InterCellID_0923)
 	end_f_loop(i_face0, t_FeedInterface)
 }
 
-DEFINE_ON_DEMAND(WallCellProp_0923)
+DEFINE_ON_DEMAND(WallCellProp_1018)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
@@ -316,6 +316,7 @@ DEFINE_ON_DEMAND(WallCellProp_0923)
 	Thread *t_FeedFluid, *t_PermFluid;
 	Thread *t_FeedInterface, *t_PermInterface;
 	real cp[2], wx[2], rho[2], h[2], vol[2];
+	real T[2] = {353.2, 303.2}, wi[2] = {0.965, 1.0};
 	real A[ND_ND];
 	Domain *domain = Get_Domain(id_domain);
 	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
@@ -337,13 +338,15 @@ DEFINE_ON_DEMAND(WallCellProp_0923)
 	//	Message("%d. Specific heat %g, mass fraction %g, density %g, enthalpy %g and cell volume %g\n", i, cp[0], wx[0], rho[0], h[0], vol[0]);
 	//	if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
 	//}
-	begin_f_loop(i_face, t_FeedInterface)
-	{
-		i_cell = F_C0(i_face, t_FeedInterface);
-		F_AREA(A, i_face, t_FeedInterface);
-		Message("Cell#%d area vector is [%g, %g]\n", i_cell, A[0], A[1]);
-	}
-	end_f_loop(i_face, t_FeedInterface)
+	//begin_f_loop(i_face, t_FeedInterface)
+	//{
+	//	i_cell = F_C0(i_face, t_FeedInterface);
+	//	F_AREA(A, i_face, t_FeedInterface);
+	//	Message("Cell#%d area vector is [%g, %g]\n", i_cell, A[0], A[1]);
+	//}
+	//end_f_loop(i_face, t_FeedInterface)
+	Message("psat_h2o(%g) = %g\n", T[1], psat_h2o(T[1]));
+	Message("WaterVaporPressure_brine(%g, %g) = %g\n", T[0], wi[0], WaterVaporPressure_brine(T[0], wi[0]));
 }
 
 DEFINE_ON_DEMAND(TProfile_0914)
@@ -469,6 +472,54 @@ DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 		F_PROFILE(i_face, t_face, SettingVariable) = dir*heat_flux;
 	}
 	end_f_loop(i_face, t_face)
+}
+
+DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
+/*
+	[objectives] set the fluid density
+	[methods] 1. get the cell's temperature and mass fraction of NaCl
+	          2. invoke the Density_aqNaCl()
+						3. set the calculated density
+	[outputs] density of aqueous NaCl solution
+*/
+{
+	real T, w_nv, rho = 0.;
+	T = C_T(i_cell, t_cell)-273.15; // celcius degree
+	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+	rho = Density_aqNaCl(T, w_nv);
+	return rho;
+}
+
+DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
+/*
+	[objs] set the fluid viscosity
+	[meth] 1. get the cell's temperature and mass fraction of NaCl
+	       2. invoke the Viscosity_aqNaCl()
+				 3. set the calculated viscosity with the empirical correlation
+	[outs] density of aqueous NaCl solution
+*/
+{
+	real T, w_nv, mu = 0.;
+	T = C_T(i_cell, t_cell)-273.15; // celcius degree
+	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+	mu = Viscosity_aqNaCl(T, w_nv);
+	return mu;
+}
+
+DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1017, i_cell, t_cell)
+/*
+	[objs] set the fluid thermal conductivity
+	[meth] 1. get the cell's temperature and mass fraction of NaCl
+	       2. invoke the ThermCond_aq()
+				 3. set the calculated thermal conductivity with the empirical correlation
+	[outs] thermal conductivity of aqueous NaCl solution
+*/
+{
+	real T, w_nv, lambda = 0.;
+	T = C_T(i_cell, t_cell)-273.15; // celcius degree
+	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+	lambda = ThermCond_aq(T, w_nv);
+	return lambda;
 }
 
 int GetWID(int searching_cell_index)
