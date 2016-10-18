@@ -105,9 +105,9 @@ real LocalHeatFlux(int opt, real tw0, real tw1, real mass_flux) // if tw0 > tw1,
 			break;
 		}
 	}
-	else if (tw0!=tw1)
+	else if ((tw0!=tw1) && (id_message<2))
 	{
-		Message("[ERROR] Mass flux has a wrong direction. ERR%g/%g/%g \n", mass_flux, tw0, tw1);
+		Message("[WARNING] Mass flux has a wrong direction. ERR%g/%g/%g \n", mass_flux, tw0, tw1);
 	}
 	return JH;
 }
