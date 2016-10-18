@@ -63,6 +63,7 @@ real ThermCond_Maxwell(real temp, real porosity, int opt)
 	result = kappa[GAS]*(1.+2.*beta*(1.-porosity))/(1.-beta*(1.-porosity));
 	return result;
 }
+
 real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl
 {
 	real result = 0.;
@@ -76,66 +77,13 @@ real LatentHeat(real t) // latent heat in water evaporation/condensation for giv
 	result = 1.e+3*(1.7535*t+2024.3); // use SI unit (J/kg)
 	return result;
 }
+
 real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (K) and concentration (w%)
 {
 	real result=0.;
 	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
 	return result;
 }
-/*
-[Objectives] define the propertis in terms of temperature or mass fraction 
-[methods]  1. obtain the temperature and mass fraction of the cell
-		   2. calculate the properties with the given temperature/mass fraction and property function
-[outputs]  the properties of materials
-*/
-DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
-{
-	real result;
-	real temp_tca = C_T(c,t);
-	real conc_tca = C_YI(c,t,1);
-	result = (0.608+(7.46e-4)*(temp_tca-273.15))*(1-0.98*(18*conc_tca/(58.5-40.5*conc_tca)));
-	return result;
-}
-
-DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
-{
-	real result;
-	real conc_d = C_YI(c,t,1);
-	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
-	return result;
-}
-DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
-{
-	real result,xa,tem;
-	real temp_v = C_T(c,t);
-	real conc_v = C_YI(c,t,1);
-	xa=(18*conc_v/(58.5-40.5*conc_v));
-	tem=temp_v-273.15;
-	result=(8.7e-4-6.3e-6*tem)*(1+12.9*xa);
-	return result;
-}
-/*
-//[Problems] can not obtain the right mass fraction, making cp value remain constant of 4181.4//
-//DEFINE_SPECIFIC_HEAT(Specific_heat0, T, Tref, h, yi)//result of Polynomial fitting, original data is from 化学化工物性数据手册p494
-//{
-//	Domain *domain = Get_Domain(id_domain);
-//	Thread *t;
-//	cell_t c;
-//	real xm;
-//	real cp=0.;
-//	thread_loop_c(t, domain)
-//{
-//	begin_c_loop(c, t)
-//	{
-//		xm= C_YI(c, t,1);
-//		cp= (4.3876*xm*xm - 4.8591*xm + 4.1814)*1000;
-//		*h=cp*(T-Tref);
-//	}
-//	end_c_loop(c, t);
-//}
-//				return cp;
-//}
-*/
 
 real ConvertX(int imat, int nmat, real MW[], real wi[])
 /*
@@ -160,7 +108,7 @@ real ConvertX(int imat, int nmat, real MW[], real wi[])
 	return xi;
 }
 
-real ActivityCoefficient_h2o(x_nv)
+real ActivityCoefficient_h2o(real x_nv)
 /*
 	[objs] correlate the activity coefficient in an aqueous sodium chloride solution
 	[meth] use the correlation proposed by Lawson and Lloyd
@@ -175,15 +123,15 @@ real ActivityCoefficient_h2o(x_nv)
 real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 /*
 	[Objectives] calculate the vapor pressure for the specified component
-	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components
+	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components (x_nv)
 	          2. calculate the activity coefficient according to Lawson and Lloyd's correlation
 						3. get the water vapor pressure by invoking psat_h2o
 	[outputs] vapor pressure in SI (Pa)
 */
 {
 	real x_nv, alpha, vp, MW[2] = {18.0, 40.0}, wi[2];
-	wi[1] = mass_fraction_h2o;
-	wi[2] = 1.-mass_fraction_h2o;
+	wi[0] = mass_fraction_h2o;
+	wi[1] = 1.-mass_fraction_h2o;
 	x_nv = 1.-ConvertX(0, 2, MW, wi);
 	alpha = ActivityCoefficient_h2o(x_nv);
 	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
