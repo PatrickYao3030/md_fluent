@@ -76,61 +76,105 @@ real LatentHeat(real t) // latent heat in water evaporation/condensation for giv
 	result = 1.e+3*(1.7535*t+2024.3); // use SI unit (J/kg)
 	return result;
 }
+
 real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (K) and concentration (w%)
 {
 	real result=0.;
 	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
 	return result;
 }
+
+real ConvertX(int imat, int nmat, real MW[], real wi[])
 /*
-[Objectives] define the propertis in terms of temperature or mass fraction 
-[methods]  1. obtain the temperature and mass fraction of the cell
-		   2. calculate the properties with the given temperature/mass fraction and property function
-[outputs]  the properties of materials
+	[objs] convert the mass fraction of component imat into the molar fraction
+	[meth] allocate a dynamic array for temporary storage
+	       calculate the mole for each component
+				 calculate the molar fraction for the specified index in the array
+	[outs] molar fraction
 */
-DEFINE_PROPERTY(ThermCond_aq0,c,t)//shuaitao
 {
-	real result;
-	real temp_tca = C_T(c,t);
-	real conc_tca = C_YI(c,t,1);
-	result = (0.608+(7.46e-4)*(temp_tca-273.15))*(1-0.98*(18*conc_tca/(58.5-40.5*conc_tca)));
-	return result;
+	real *r;
+	real sum_N = 0., xi = 0.;
+	int i;
+	r = (real*)malloc(nmat*sizeof(real));
+	for (i=0; i<nmat; i++) 
+	{
+		r[i] = wi[i]/MW[i];
+		sum_N = sum_N+r[i];
+	}
+	xi = r[imat]/sum_N;
+	free(r);
+	return xi;
 }
 
-DEFINE_PROPERTY(Density_0,c,t)//Shuaitao
-{
-	real result;
-	real conc_d = C_YI(c,t,1);
-	result = 980+1950*(18*conc_d/(58.5-40.5*conc_d));
-	return result;
-}
-DEFINE_PROPERTY(Viscosity_0,c,t)//Shuaitao
-{
-	real result;
-	real temp_v = C_T(c,t);
-	real conc_v = C_YI(c,t,1);
-	result=(17.02821-0.39206*(temp_v-273.15)+0.188912*(conc_v*100)-0.00466*(temp_v-273.15)*(conc_v*100)+0.003025*(temp_v-273.15)*(temp_v-273.15)+0.011738*(conc_v*100)*(conc_v*100))*0.001;
-	return result;
-}
+real ActivityCoefficient_h2o(real x_nv)
 /*
-//[Problems] can not obtain the right mass fraction, making cp value remain constant of 4181.4//
-//DEFINE_SPECIFIC_HEAT(Specific_heat0, T, Tref, h, yi)//result of Polynomial fitting, original data is from 化学化工物性数据手册p494
-//{
-//	Domain *domain = Get_Domain(id_domain);
-//	Thread *t;
-//	cell_t c;
-//	real xm;
-//	real cp=0.;
-//	thread_loop_c(t, domain)
-//{
-//	begin_c_loop(c, t)
-//	{
-//		xm= C_YI(c, t,1);
-//		cp= (4.3876*xm*xm - 4.8591*xm + 4.1814)*1000;
-//		*h=cp*(T-Tref);
-//	}
-//	end_c_loop(c, t);
-//}
-//				return cp;
-//}
+	[objs] correlate the activity coefficient in an aqueous sodium chloride solution
+	[meth] use the correlation proposed by Lawson and Lloyd
+	[outs] dimensionless activity coefficent
 */
+{
+	real alpha_h2o;
+	alpha_h2o = 1.-0.5*x_nv-10.*pow(x_nv, 2.);
+	return alpha_h2o;
+}
+
+real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
+/*
+	[Objectives] calculate the vapor pressure for the specified component
+	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components (x_nv)
+	          2. calculate the activity coefficient according to Lawson and Lloyd's correlation
+						3. get the water vapor pressure by invoking psat_h2o
+	[outputs] vapor pressure in SI (Pa)
+*/
+{
+	real x_nv, alpha, vp, MW[2] = {18.01534, 58.4428}, wi[2];
+	wi[0] = mass_fraction_h2o;
+	wi[1] = 1.-mass_fraction_h2o;
+	x_nv = 1.-ConvertX(0, 2, MW, wi);
+	alpha = ActivityCoefficient_h2o(x_nv);
+	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
+	return vp;
+}
+
+real Density_aqNaCl(real T, real w)
+/*
+	[objs] correlate the density of aqueous NaCl solution
+	[meth] empirical correlation by B.S. Sparrow, Desalination 2003, 159(2): 161-170
+	[outs] density in SI (kg/m3)
+*/
+{
+	int i, j;
+	real sum = 0.;
+	real A[5][5] = {{1.001, 0.7666, -0.0149, 0.2663, 0.8845},
+	                {-0.0214, -3.496, 10.02, -6.56, -31.37},
+	                {-5.263, 39.87, 176.2, 363.5, -7.784},
+	                {15.42,-167.0, 980.7, -2573.0, 876.6},
+									{-0.0276, 0.2978, -2.017, 6.345, -3.914}};
+	real B[5] = {0., 0., 0., 0., 0.};
+	real C[5] = {1.e3, 1.e0, 1.e-3, 1.e-6, 1.e-6};
+	if ((T<0.)||(T>300.)) Message("[WARNING] Density correlation at %g C is out of temperature range.\n", T);
+	for (i=0; i<5; i++)
+	{
+		for (j=0; j<5; j++)
+		{
+			B[i] += A[i][j]*pow(w, j);
+		}
+		sum += B[i]*C[i]*pow(T, i);
+	}
+	return sum;
+}
+
+real Viscosity_aqNaCl(real T, real w_nv)
+/*
+	[objs] calculate the viscosity of aq NaCl solution for given T [C, 0.0 <= T <= 80.0] and mass fraction of NaCl [0.0 <= w_nv <= 0.25]
+	[meth] empirical correlation of literature data
+	[outs] viscosity [Pa-s]
+*/
+{
+	real mu = 0.;
+	//if ((T<0.)||(T>80.)) Message("[WARNING] Viscosity correlation at %g C is out of temperature range.\n", T);
+	if ((w_nv<0.)||(w_nv>0.25)) Message("[WARNING] Viscosity correlation for salinity of %g is out of mass-fraction range.\n", w_nv);
+	mu = (17.02821-0.39206*T+0.188912*w_nv-0.00466*T*w_nv+0.003025*T*T+0.011738*w_nv*w_nv)*0.001;
+	return mu;
+}
