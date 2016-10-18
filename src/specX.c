@@ -298,7 +298,7 @@ DEFINE_ON_DEMAND(InterCellID_0923)
 	end_f_loop(i_face0, t_FeedInterface)
 }
 
-DEFINE_ON_DEMAND(WallCellProp_0923)
+DEFINE_ON_DEMAND(WallCellProp_1018)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
@@ -316,6 +316,7 @@ DEFINE_ON_DEMAND(WallCellProp_0923)
 	Thread *t_FeedFluid, *t_PermFluid;
 	Thread *t_FeedInterface, *t_PermInterface;
 	real cp[2], wx[2], rho[2], h[2], vol[2];
+	real T[2] = {353.2, 303.2}, wi[2] = {0.965, 1.0};
 	real A[ND_ND];
 	Domain *domain = Get_Domain(id_domain);
 	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
@@ -337,13 +338,15 @@ DEFINE_ON_DEMAND(WallCellProp_0923)
 	//	Message("%d. Specific heat %g, mass fraction %g, density %g, enthalpy %g and cell volume %g\n", i, cp[0], wx[0], rho[0], h[0], vol[0]);
 	//	if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
 	//}
-	begin_f_loop(i_face, t_FeedInterface)
-	{
-		i_cell = F_C0(i_face, t_FeedInterface);
-		F_AREA(A, i_face, t_FeedInterface);
-		Message("Cell#%d area vector is [%g, %g]\n", i_cell, A[0], A[1]);
-	}
-	end_f_loop(i_face, t_FeedInterface)
+	//begin_f_loop(i_face, t_FeedInterface)
+	//{
+	//	i_cell = F_C0(i_face, t_FeedInterface);
+	//	F_AREA(A, i_face, t_FeedInterface);
+	//	Message("Cell#%d area vector is [%g, %g]\n", i_cell, A[0], A[1]);
+	//}
+	//end_f_loop(i_face, t_FeedInterface)
+	Message("psat_h2o(%g) = %g\n", T[1], psat_h2o(T[1]));
+	Message("WaterVaporPressure_brine(%g, %g) = %g\n", T[0], wi[0], WaterVaporPressure_brine(T[0], wi[0]));
 }
 
 DEFINE_ON_DEMAND(TProfile_0914)

@@ -107,7 +107,7 @@ real ConvertX(int imat, int nmat, real MW[], real wi[])
 	return xi;
 }
 
-real ActivityCoefficient_h2o(x_nv)
+real ActivityCoefficient_h2o(real x_nv)
 /*
 	[objs] correlate the activity coefficient in an aqueous sodium chloride solution
 	[meth] use the correlation proposed by Lawson and Lloyd
@@ -122,15 +122,15 @@ real ActivityCoefficient_h2o(x_nv)
 real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 /*
 	[Objectives] calculate the vapor pressure for the specified component
-	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components
+	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components (x_nv)
 	          2. calculate the activity coefficient according to Lawson and Lloyd's correlation
 						3. get the water vapor pressure by invoking psat_h2o
 	[outputs] vapor pressure in SI (Pa)
 */
 {
 	real x_nv, alpha, vp, MW[2] = {18.01534, 58.4428}, wi[2];
-	wi[1] = mass_fraction_h2o;
-	wi[2] = 1.-mass_fraction_h2o;
+	wi[0] = mass_fraction_h2o;
+	wi[1] = 1.-mass_fraction_h2o;
 	x_nv = 1.-ConvertX(0, 2, MW, wi);
 	alpha = ActivityCoefficient_h2o(x_nv);
 	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
