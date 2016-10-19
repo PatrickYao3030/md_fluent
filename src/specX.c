@@ -31,7 +31,7 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
 	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
-	membrane.MDcoeff = 9.5e-7;
+	membrane.MDcoeff = 2.23e-7;
 }
 
 void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
