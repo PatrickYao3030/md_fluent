@@ -77,11 +77,48 @@ real LatentHeat(real t) // latent heat in water evaporation/condensation for giv
 	return result;
 }
 
-real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (K) and concentration (w%)
+real Convert_w2m(real w)
+/*
+	[objs] convert the NaCl mass fraction into molality
+	[meth] calculate the molality, m = (mole of solute, mol) / (mass of solvent, kg)
+	[outs] molality [mol/kg]
+*/
 {
-	real result=0.;
-	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
-	return result;
+	real m = 0.;
+	m = w/(1.-w)/58.4428*1000.;
+	return m;
+}
+
+real ThermCond_aqNaCl(real T, real w_nacl)
+/*
+	[objs] correlate the thermal conductivity of NaCl solution for given temperature (K) and mass fraction of NaCl
+	[meth] the empirical equations by Ramires 1994 JCED (http://pubs.acs.org/doi/pdf/10.1021/je00013a053)
+				 1. convert the mass fraction of NaCl into molality
+				 2. correlate the thermal conductivity of NaCl with using eq.(7)
+	[outs] thermal conductivity [W/m-K]
+*/
+{
+	real m = 0., lambda = 0.;
+	real sum[3] = {0., 0., 0.};
+	real a[3][3] = {{0.5621, 0.00199, -8.6e-6},
+	                {-0.01394, 0.000294, -2.3e-6},
+									{0.00177, -6.3e-5, 4.5e-7}};
+	int i, j;
+	m = Convert_w2m(w_nacl);
+	if (id_message <= 1)
+	{
+		if ((T < 295.) || (T > 365.)) Message("[WARNING] Out of temperature range for %g in thermal conductivity correlation", T);
+		if (m <= 6.0) Message("[WARNING] Out of molality range for %g in thermal conductivity correlation", m);
+	}
+	for (i=0; i<3; i++)
+	{
+		for (j=0; j<3; j++)
+		{
+			sum[i] += a[i][j]*pow((T-273.15), j);
+		}
+		lambda += sum[i]*pow(m, i);
+	}
+	return lambda;
 }
 
 real ConvertX(int imat, int nmat, real MW[], real wi[])
