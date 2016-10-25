@@ -30,7 +30,7 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.thickness = 1.5e-4;
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
-	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
+	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PTFE);
 	membrane.MDcoeff = 3.28e-7;
 }
 
