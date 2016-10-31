@@ -23,7 +23,7 @@ struct PorousMaterials membrane;
 struct CellInfos WallCell[MAXCELLNUM][2];
 struct MessageInfos CellPairInfo[MAXRECLINE];
 
-extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat(), Density_aqNaCl(), Viscosity_aqNaCl(), ThermCond_aq();
+extern real SatConc(), ThermCond_Maxwell(), WaterVaporPressure_brine(), LatentHeat(), Density_aqNaCl(), Viscosity_aqNaCl(), ThermCond_aqNaCl();
 
 void GetProp_Membrane(real temperature) // Get the properties of the membrane for the given temperature
 {
@@ -506,7 +506,7 @@ DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
 	return mu;
 }
 
-DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1017, i_cell, t_cell)
+DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1023, i_cell, t_cell)
 /*
 	[objs] set the fluid thermal conductivity
 	[meth] 1. get the cell's temperature and mass fraction of NaCl
@@ -518,7 +518,7 @@ DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1017, i_cell, t_cell)
 	real T, w_nv, lambda = 0.;
 	T = C_T(i_cell, t_cell)-273.15; // celcius degree
 	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	lambda = ThermCond_aq(T, w_nv);
+	lambda = ThermCond_aqNaCl(T, w_nv);
 	return lambda;
 }
 
