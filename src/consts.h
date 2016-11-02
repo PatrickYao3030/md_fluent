@@ -11,8 +11,8 @@
 #define id_domain 1
 #define id_FeedFluid 5
 #define id_PermFluid 4
-#define id_FeedInterface 13
-#define id_PermInterface 14
+#define id_FeedInterface 14
+#define id_PermInterface 13
 /* the customized messages displayed in command-line window of FLUENT have 3 levels
    Lvl.0 stands for serious problems needed care
 	 Lvl.1            warnings
