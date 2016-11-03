@@ -195,13 +195,6 @@ DEFINE_INIT(idf_cells_1103, domain)
 	t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
 	t_PermInterface = Lookup_Thread(domain, id_PermInterface);
 
-	//if(!Data_Valid_P()) 
-	//{
-	//	Message("\n[idf_cells] Some accessing variables have not been allocated.\n");
-	//	Message("[idf_cells] The wall cells have not been identified yet.\n");
-	//	return;
-	//}
-
 	for (i=0; i<MAXCELLNUM; i++)
 	{
 		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) // check the pre-existed workspace
@@ -476,7 +469,7 @@ DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 	end_f_loop(i_face, t_face)
 }
 
-DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
+DEFINE_PROPERTY(density_aqNaCl_1103, i_cell, t_cell)
 /*
 	[objectives] set the fluid density
 	[methods] 1. get the cell's temperature and mass fraction of NaCl
@@ -486,13 +479,16 @@ DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
 */
 {
 	real T, w_nv, rho = 0.;
-	T = C_T(i_cell, t_cell)-273.15; // celcius degree
-	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	rho = Density_aqNaCl(T, w_nv);
+	if(Data_Valid_P()) 
+	{
+		T = C_T(i_cell, t_cell)-273.15; // celcius degree
+		w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+		rho = Density_aqNaCl(T, w_nv);
+	}
 	return rho;
 }
 
-DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
+DEFINE_PROPERTY(viscosity_aqNaCl_1103, i_cell, t_cell)
 /*
 	[objs] set the fluid viscosity
 	[meth] 1. get the cell's temperature and mass fraction of NaCl
@@ -502,13 +498,16 @@ DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
 */
 {
 	real T, w_nv, mu = 0.;
-	T = C_T(i_cell, t_cell)-273.15; // celcius degree
-	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	mu = Viscosity_aqNaCl(T, w_nv);
+	if(Data_Valid_P())
+	{
+		T = C_T(i_cell, t_cell)-273.15; // celcius degree
+		w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+		mu = Viscosity_aqNaCl(T, w_nv);
+	}
 	return mu;
 }
 
-DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1023, i_cell, t_cell)
+DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1103, i_cell, t_cell)
 /*
 	[objs] set the fluid thermal conductivity
 	[meth] 1. get the cell's temperature and mass fraction of NaCl
@@ -518,9 +517,12 @@ DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1023, i_cell, t_cell)
 */
 {
 	real T, w_nv, lambda = 0.;
-	T = C_T(i_cell, t_cell)-273.15; // celcius degree
-	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	lambda = ThermCond_aqNaCl(T, w_nv);
+	if(Data_Valid_P()) 
+	{
+		T = C_T(i_cell, t_cell)-273.15; // celcius degree
+		w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+		lambda = ThermCond_aqNaCl(T, w_nv);
+	}
 	return lambda;
 }
 
