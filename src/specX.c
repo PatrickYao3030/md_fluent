@@ -287,13 +287,14 @@ DEFINE_ON_DEMAND(IdentifyInterCells_1103)
 
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
-		Message("1\n");
 		i_cell0 = F_C0(i_face0, t_FeedInterface); // get the index for the cell adjacent the 
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
 		WallCell[gid][0].index = i_cell0; // output the cell info to the workspace variable WallCell
-		WallCell[gid][0].centroid[0] = loc0[0];
-		WallCell[gid][0].centroid[1] = loc0[1];
+		for (i=0; i<ND_ND; i++)
+		{
+			WallCell[gid][0].centroid[i] = loc0[i];
+		}
 		//WallCell[gid][0].temperature = C_T(i_cell0, t_FeedFluid); // because the flowing field has not initiated yet, no field info can be got
 		WallCell[gid][0].volume = C_VOLUME(i_cell0, t_FeedFluid);
 		F_AREA(InterfaceArea, i_face0, t_FeedInterface);
@@ -307,8 +308,10 @@ DEFINE_ON_DEMAND(IdentifyInterCells_1103)
 			{
 				fprintf(fout0, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
 				WallCell[gid][1].index = i_cell1;
-				WallCell[gid][1].centroid[0] = loc1[0];
-				WallCell[gid][1].centroid[1] = loc1[1];
+				for (i=0; i<ND_ND; i++)
+				{
+					WallCell[gid][1].centroid[i] = loc0[i];
+				}
 				//WallCell[gid][1].temperature = C_T(i_cell1, t_PermFluid);
 				WallCell[gid][1].volume = C_VOLUME(i_cell1, t_PermFluid);
 				F_AREA(InterfaceArea, i_face1, t_PermInterface);
@@ -347,38 +350,6 @@ DEFINE_ON_DEMAND(IdentifyInterCells_1103)
 
 	fclose(fout0);
 	fclose(fout1);
-}
-
-DEFINE_ON_DEMAND(InterCellID_0923)
-{
-	cell_t i_cell, i_cell0, i_cell1;
-	face_t i_face0, i_face1;
-	Thread *t_cell;
-	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
-	int i = 0;
-	real temp = 0.0;
-	Domain *domain = Get_Domain(id_domain);
-	Thread *t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
-	Thread *t_PermFluid = Lookup_Thread(domain, id_PermFluid);
-	Thread *t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
-	Thread *t_PermInterface = Lookup_Thread(domain, id_PermInterface);
-
-	//fout2 = fopen("idf_cell2.out", "w");
-	//fout3 = fopen("idf_cell3.out", "w");
-	//begin_c_loop(i_cell, t_FeedFluid){
-	//	Message("cell#%d\n", i_cell);
-	//}
-	//end_c_loop(i_cell, t_FeedFluid)
-
-	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
-	{
-		i_cell0 = F_C0(i_face0, t_FeedInterface);
-		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		Message("Feed-side interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
-		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
-		gid++;
-	}
-	end_f_loop(i_face0, t_FeedInterface)
 }
 
 DEFINE_ON_DEMAND(WallCellProp_1018)
