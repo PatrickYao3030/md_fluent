@@ -168,7 +168,7 @@ void MembraneTransfer(int opt)
 	return;
 }
 
-DEFINE_INIT(idf_cells_1007, domain)
+DEFINE_INIT(idf_cells_1103, domain)
 /* 
    [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
                 2. find the corresponding cells with the same x-coordinate
@@ -202,6 +202,16 @@ DEFINE_INIT(idf_cells_1007, domain)
 	//	return;
 	//}
 
+	for (i=0; i<MAXCELLNUM; i++)
+	{
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) // check the pre-existed workspace
+		{
+			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
+			break;
+		}
+		C_UDMI(WallCell[i][0].index, t_FeedFluid, 0) = -1;
+		C_UDMI(WallCell[i][1].index, t_PermFluid, 0) = +1;
+	}
 }
 
 DEFINE_ON_DEMAND(IdentifyInterCells_1103)
