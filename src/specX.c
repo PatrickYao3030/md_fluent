@@ -30,8 +30,8 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.thickness = 1.5e-4;
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
-	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
-	membrane.MDcoeff = 9.5e-7;
+	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PTFE);
+	membrane.MDcoeff = 8.88e-7;
 }
 
 void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
@@ -212,10 +212,6 @@ DEFINE_INIT(idf_cells_1103, domain)
 		C_UDMI(WallCell[i][0].index, t_FeedFluid, 0) = -1;
 		C_UDMI(WallCell[i][1].index, t_PermFluid, 0) = +1;
 	}
-	thread_loop_c(c_FeedFluid, domain)
-	{}
-	thread_loop_c(c_PermFluid, domain)
-	{}
 }
 
 DEFINE_ON_DEMAND(IdentifyInterCells_1103)
