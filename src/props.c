@@ -63,11 +63,24 @@ real ThermCond_Maxwell(real temp, real porosity, int opt)
 	result = kappa[GAS]*(1.+2.*beta*(1.-porosity))/(1.-beta*(1.-porosity));
 	return result;
 }
-real SatConc(real t) // saturated concentration for given temperature in term of the mass fraction of NaCl
+
+real SatConc(real t) // saturated concentration for given temperature [K] in term of the mass fraction of NaCl
+/*
+	[objs] correlate the solubility (saturated concentration of NaCl)
+	[meth] empirical correlation by B.S. Sparrow, Desalination 2003, 159(2): 161-170, eq.(5)
+	[outs] saturated mass fraction of NaCl
+*/
 {
-	real result = 0.;
-	result = .27;
-	return result;
+	real temp=0., w_sat = 0.;
+	real A[3] = {0.2628, 62.75e-4, 1.084e-6};
+	int i;
+	temp = t-273.15;
+	if ((t<0.)||(t>450.)) Message("[WARNING] Solubility correlation at %g C is out of temperature range.\n", t);
+	for (i=0; i<3; i++)
+	{
+		w_sat += A[i]*pow(t, i);
+	}
+	return w_sat;
 }
 
 real LatentHeat(real t) // latent heat in water evaporation/condensation for given temperature (K) in 1 atm, Drioli, E.and M. Romano [IECR 40(5): 1277-1300]
@@ -77,11 +90,48 @@ real LatentHeat(real t) // latent heat in water evaporation/condensation for giv
 	return result;
 }
 
-real ThermCond_aq(real t,real c) // thermal conductivity for given temperature (K) and concentration (w%)
+real Convert_w2m(real w)
+/*
+	[objs] convert the NaCl mass fraction into molality
+	[meth] calculate the molality, m = (mole of solute, mol) / (mass of solvent, kg)
+	[outs] molality [mol/kg]
+*/
 {
-	real result=0.;
-	result=(0.608+7.46e-4*(t-273.15))*(1.-0.98*(18.*c/(58.5-40.5*c)));
-	return result;
+	real m = 0.;
+	m = w/(1.-w)/58.4428*1000.;
+	return m;
+}
+
+real ThermCond_aqNaCl(real T, real w_nacl)
+/*
+	[objs] correlate the thermal conductivity of NaCl solution for given temperature (K) and mass fraction of NaCl
+	[meth] the empirical equations by Ramires 1994 JCED (http://pubs.acs.org/doi/pdf/10.1021/je00013a053)
+				 1. convert the mass fraction of NaCl into molality
+				 2. correlate the thermal conductivity of NaCl with using eq.(7)
+	[outs] thermal conductivity [W/m-K]
+*/
+{
+	real m = 0., lambda = 0.;
+	real sum[3] = {0., 0., 0.};
+	real a[3][3] = {{0.5621, 0.00199, -8.6e-6},
+	                {-0.01394, 0.000294, -2.3e-6},
+									{0.00177, -6.3e-5, 4.5e-7}};
+	int i, j;
+	m = Convert_w2m(w_nacl);
+	if (id_message <= 1)
+	{
+		if ((T < 295.) || (T > 365.)) Message("[WARNING] Out of temperature range for %g in thermal conductivity correlation", T);
+		if (m <= 6.0) Message("[WARNING] Out of molality range for %g in thermal conductivity correlation", m);
+	}
+	for (i=0; i<3; i++)
+	{
+		for (j=0; j<3; j++)
+		{
+			sum[i] += a[i][j]*pow((T-273.15), j);
+		}
+		lambda += sum[i]*pow(m, i);
+	}
+	return lambda;
 }
 
 real ConvertX(int imat, int nmat, real MW[], real wi[])
@@ -107,7 +157,7 @@ real ConvertX(int imat, int nmat, real MW[], real wi[])
 	return xi;
 }
 
-real ActivityCoefficient_h2o(x_nv)
+real ActivityCoefficient_h2o(real x_nv)
 /*
 	[objs] correlate the activity coefficient in an aqueous sodium chloride solution
 	[meth] use the correlation proposed by Lawson and Lloyd
@@ -121,16 +171,16 @@ real ActivityCoefficient_h2o(x_nv)
 
 real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 /*
-	[Objectives] calculate the vapor pressure for the specified component
-	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components
+	[Objectives] calculate the vapor pressure for the specified mass fraction of water in given temperature [K]
+	[methods] 1. convert the input mass fraction of water into the molar fraction of nonvolatile components (x_nv)
 	          2. calculate the activity coefficient according to Lawson and Lloyd's correlation
 						3. get the water vapor pressure by invoking psat_h2o
 	[outputs] vapor pressure in SI (Pa)
 */
 {
 	real x_nv, alpha, vp, MW[2] = {18.01534, 58.4428}, wi[2];
-	wi[1] = mass_fraction_h2o;
-	wi[2] = 1.-mass_fraction_h2o;
+	wi[0] = mass_fraction_h2o;
+	wi[1] = 1.-mass_fraction_h2o;
 	x_nv = 1.-ConvertX(0, 2, MW, wi);
 	alpha = ActivityCoefficient_h2o(x_nv);
 	vp = (1.-x_nv)*alpha*psat_h2o(temperature);
@@ -140,7 +190,7 @@ real WaterVaporPressure_brine(real temperature, real mass_fraction_h2o)
 real Density_aqNaCl(real T, real w)
 /*
 	[objs] correlate the density of aqueous NaCl solution
-	[meth] empirical correlation by B.S. Sparrow, Desalination 2003, 159(2): 161-170
+	[meth] empirical correlation by B.S. Sparrow, Desalination 2003, 159(2): 161-170, eq.(7)
 	[outs] density in SI (kg/m3)
 */
 {
@@ -153,7 +203,7 @@ real Density_aqNaCl(real T, real w)
 									{-0.0276, 0.2978, -2.017, 6.345, -3.914}};
 	real B[5] = {0., 0., 0., 0., 0.};
 	real C[5] = {1.e3, 1.e0, 1.e-3, 1.e-6, 1.e-6};
-	if ((T<0.)||(T>300.)) Message("[WARNING] Density correlation out of temperature range\n");
+	if ((T<0.)||(T>300.)) Message("[WARNING] Density correlation at %g C is out of temperature range.\n", T);
 	for (i=0; i<5; i++)
 	{
 		for (j=0; j<5; j++)
@@ -173,8 +223,8 @@ real Viscosity_aqNaCl(real T, real w_nv)
 */
 {
 	real mu = 0.;
-	if ((T<0.)||(T>80.)) Message("[WARNING] Viscosity correlation out of temperature range\n");
-	if ((w_nv<0.)||(w_nv>0.25)) Message("[WARNING] Viscosity correlation out of mass-fraction range\n");
+	//if ((T<0.)||(T>80.)) Message("[WARNING] Viscosity correlation at %g C is out of temperature range.\n", T);
+	if ((w_nv<0.)||(w_nv>0.25)) Message("[WARNING] Viscosity correlation for salinity of %g is out of mass-fraction range.\n", w_nv);
 	mu = (17.02821-0.39206*T+0.188912*w_nv-0.00466*T*w_nv+0.003025*T*T+0.011738*w_nv*w_nv)*0.001;
 	return mu;
 }
