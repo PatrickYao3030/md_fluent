@@ -6,7 +6,7 @@
 /******************************************************************** 
  Preliminary checklist before use:
  (1) Run the ANSYS FLUENT in 2-d serial mode
- (2) Allocate the three User-Defined Memories
+ (2) Allocate 4 User-Defined Memories
  (3) Set the mixture for both cell zone conditions
 ********************************************************************/
 
@@ -30,8 +30,8 @@ void GetProp_Membrane(real temperature) // Get the properties of the membrane fo
 	membrane.thickness = 1.5e-4;
 	membrane.porosity = 0.7;
 	membrane.tortuosity = 1.2;
-	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PVDF);
-	membrane.MDcoeff = 9.5e-7;
+	membrane.conductivity = ThermCond_Maxwell(temperature, membrane.porosity, PTFE);
+	membrane.MDcoeff = 8.88e-7;
 }
 
 void Monitor_CellPair(int opt, int rec_idx, int idx_cells)
@@ -189,6 +189,7 @@ DEFINE_INIT(idf_cells_1007, domain)
 	real InterfaceArea[ND_ND];
 	int i = 0;
 	real temp = 0.0;
+	gid = 0;
 
 	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
 	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
@@ -266,36 +267,129 @@ DEFINE_INIT(idf_cells_1007, domain)
 	fclose(fout1);
 }
 
-DEFINE_ON_DEMAND(InterCellID_0923)
+DEFINE_INIT(idf_cells_1103, domain)
+/* 
+   [objectives] 1. identify the cell pairs, which are adjacent to both sides of the membrane
+                2. find the corresponding cells with the same x-coordinate
+   [methods] 1. get a cell beside the feeding membrane boundary         
+             2. find the corresponding cells with the same x-coordinate
+   [outputs] 1. for all cells, the cell whose C_UDMI(0) = -1 means it belongs to the wall cell of feeding membrane
+                                                          +1 means it belongs to the wall cell of permeating membrane
+             2. internal variables for recording the identified pairs of wall cells
+*/
 {
+	Domain *d_feed, *d_perm;
 	cell_t i_cell, i_cell0, i_cell1;
 	face_t i_face0, i_face1;
+	Thread *t_FeedFluid, *t_PermFluid;
+	Thread *t_FeedInterface, *t_PermInterface;
 	Thread *t_cell;
 	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
+	real InterfaceArea[ND_ND];
 	int i = 0;
 	real temp = 0.0;
+
+	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
+	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
+	t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
+	t_PermInterface = Lookup_Thread(domain, id_PermInterface);
+
+	for (i=0; i<MAXCELLNUM; i++)
+	{
+		if ((WallCell[i][0].index == 0) && (WallCell[i][1].index == 0)) // check the pre-existed workspace
+		{
+			if (i == 0) Message("Workspace WallCell is empty. Run the INITIATION first\n");
+			break;
+		}
+		C_UDMI(WallCell[i][0].index, t_FeedFluid, 0) = -1;
+		C_UDMI(WallCell[i][1].index, t_PermFluid, 0) = +1;
+	}
+}
+
+DEFINE_ON_DEMAND(IdentifyInterCells_1103)
+{
 	Domain *domain = Get_Domain(id_domain);
 	Thread *t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
 	Thread *t_PermFluid = Lookup_Thread(domain, id_PermFluid);
 	Thread *t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
 	Thread *t_PermInterface = Lookup_Thread(domain, id_PermInterface);
+	cell_t i_cell0, i_cell1;
+	face_t i_face0, i_face1;
+	Thread *t_cell;
+	real loc[ND_ND], loc0[ND_ND], loc1[ND_ND];
+	real InterfaceArea[ND_ND];
+	int i = 0;
+	real temp = 0.0;
 
-	//fout2 = fopen("idf_cell2.out", "w");
-	//fout3 = fopen("idf_cell3.out", "w");
-	//begin_c_loop(i_cell, t_FeedFluid){
-	//	Message("cell#%d\n", i_cell);
-	//}
-	//end_c_loop(i_cell, t_FeedFluid)
+	fout0 = fopen("idf_cell0.out", "w");
+	fout1 = fopen("idf_cell1.out", "w");
+	gid = 0;
 
 	begin_f_loop(i_face0, t_FeedInterface) // find the adjacent cells for the feed-side membrane.
 	{
-		i_cell0 = F_C0(i_face0, t_FeedInterface);
+		i_cell0 = F_C0(i_face0, t_FeedInterface); // get the index for the cell adjacent the 
 		C_CENTROID(loc0, i_cell0, t_FeedFluid); // get the location of cell centroid
-		Message("Feed-side interface#%d's adjacent cell index is #%d, located at (%g,%g)\n", i_face0, i_cell0, loc0[0], loc0[1]);
 		C_UDMI(i_cell0, t_FeedFluid, 0) = -1; // mark the wall cells as -1, and others as 0 (no modification)
+		WallCell[gid][0].index = i_cell0; // output the cell info to the workspace variable WallCell
+		for (i=0; i<ND_ND; i++)
+		{
+			WallCell[gid][0].centroid[i] = loc0[i];
+		}
+		//WallCell[gid][0].temperature = C_T(i_cell0, t_FeedFluid); // because the flowing field has not initiated yet, no field info can be got
+		WallCell[gid][0].volume = C_VOLUME(i_cell0, t_FeedFluid);
+		F_AREA(InterfaceArea, i_face0, t_FeedInterface);
+		WallCell[gid][0].area = NV_MAG(InterfaceArea);
+		//WallCell[gid][0].massfraction.water = C_YI(i_cell0, t_FeedFluid, 0);
+		begin_f_loop(i_face1, t_PermInterface) // search the symmetric cell (THE LOOP CAN ONLY RUN IN SERIAL MODE)
+		{
+			i_cell1 = F_C0(i_face1, t_PermInterface);
+			C_CENTROID(loc1, i_cell1, t_PermFluid);
+			if (fabs(loc0[0]-loc1[0])/loc0[0] < EPS) // In this special case, the pair of wall cells on both sides of membrane are symmetrical
+			{
+				fprintf(fout0, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
+				WallCell[gid][1].index = i_cell1;
+				for (i=0; i<ND_ND; i++)
+				{
+					WallCell[gid][1].centroid[i] = loc0[i];
+				}
+				//WallCell[gid][1].temperature = C_T(i_cell1, t_PermFluid);
+				WallCell[gid][1].volume = C_VOLUME(i_cell1, t_PermFluid);
+				F_AREA(InterfaceArea, i_face1, t_PermInterface);
+				WallCell[gid][1].area = NV_MAG(InterfaceArea);
+				//WallCell[gid][1].massfraction.water = C_YI(i_cell1, t_PermFluid, 0);
+			}
+		}
+		end_f_loop(i_face1, t_PermInterface)
 		gid++;
 	}
 	end_f_loop(i_face0, t_FeedInterface)
+
+	Message("The workspace WallCell[%d] has been created.\n", gid);
+	Message("The identified wall cells, by using the feed-side enumeration, are summarized in idf_cell0.out.\n");
+
+	begin_f_loop(i_face1, t_PermInterface) // find the adjacent cells for the permeate-side membrane.
+	{
+		i_cell1 = F_C0(i_face1, t_PermInterface);
+		C_CENTROID(loc1, i_cell1, t_PermFluid); // get the location of cell centroid
+		begin_f_loop(i_face0, t_FeedInterface)
+		{
+			i_cell0 = F_C0(i_face0, t_FeedInterface);
+			C_CENTROID(loc0, i_cell0, t_FeedFluid);
+			if (fabs(loc1[0]-loc0[0])/loc1[0] < EPS)
+			{
+				fprintf(fout1, "i_cell0-%d, %g, %g, i_cell1-%d, %g, %g\n", i_cell0, loc0[0], loc0[1], i_cell1, loc1[0], loc1[1]);
+			}
+		}
+		end_f_loop(i_face1, t_PermInterface)
+		C_UDMI(i_cell1, t_PermFluid, 0) = +1; // mark the cell
+	}
+	end_f_loop(i_face1, t_PermInterface)
+	
+	Message("The identified wall cells, by using the permeate-side enumeration, are summarized in redundant idf_cell1.out.\n");
+	Message("The idf_cell0.out should be same as idf_cell1.out.\n");
+
+	fclose(fout0);
+	fclose(fout1);
 }
 
 DEFINE_ON_DEMAND(WallCellProp_1018)
@@ -395,9 +489,20 @@ DEFINE_ADJUST(calc_flux_1007, domain)
 	                                                                1 (for debug run)
 	[outputs] 1. C_UDMI(1) for mass flux
 	          2. C_UDMI(2) for latent heat flux
+						3. C_UDMI(3) for supersaturation
 */
 {
+	Thread *t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
+	cell_t i_cell0;
+
 	MembraneTransfer(0);
+
+	begin_c_loop(i_cell0, t_FeedFluid)
+	{
+		C_UDMI(i_cell0, t_FeedFluid, 3) = C_YI(i_cell0, t_FeedFluid, 1)/SatConc(C_T(i_cell0, t_FeedFluid));
+	}
+	end_c_loop(i_cell0, t_FeedFluid)
+
 }
 
 DEFINE_SOURCE(mass_source, i_cell, t_cell, dS, eqn)
@@ -474,7 +579,7 @@ DEFINE_PROFILE(heat_flux_1008, t_face, SettingVariable)
 	end_f_loop(i_face, t_face)
 }
 
-DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
+DEFINE_PROPERTY(density_aqNaCl_1103, i_cell, t_cell)
 /*
 	[objectives] set the fluid density
 	[methods] 1. get the cell's temperature and mass fraction of NaCl
@@ -484,13 +589,16 @@ DEFINE_PROPERTY(density_aqNaCl_1017, i_cell, t_cell)
 */
 {
 	real T, w_nv, rho = 0.;
-	T = C_T(i_cell, t_cell)-273.15; // celcius degree
-	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	rho = Density_aqNaCl(T, w_nv);
+	if(Data_Valid_P()) 
+	{
+		T = C_T(i_cell, t_cell)-273.15; // celcius degree
+		w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+		rho = Density_aqNaCl(T, w_nv);
+	}
 	return rho;
 }
 
-DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
+DEFINE_PROPERTY(viscosity_aqNaCl_1103, i_cell, t_cell)
 /*
 	[objs] set the fluid viscosity
 	[meth] 1. get the cell's temperature and mass fraction of NaCl
@@ -500,13 +608,16 @@ DEFINE_PROPERTY(viscosity_aqNaCl_1017, i_cell, t_cell)
 */
 {
 	real T, w_nv, mu = 0.;
-	T = C_T(i_cell, t_cell)-273.15; // celcius degree
-	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	mu = Viscosity_aqNaCl(T, w_nv);
+	if(Data_Valid_P())
+	{
+		T = C_T(i_cell, t_cell)-273.15; // celcius degree
+		w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+		mu = Viscosity_aqNaCl(T, w_nv);
+	}
 	return mu;
 }
 
-DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1023, i_cell, t_cell)
+DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1103, i_cell, t_cell)
 /*
 	[objs] set the fluid thermal conductivity
 	[meth] 1. get the cell's temperature and mass fraction of NaCl
@@ -516,9 +627,12 @@ DEFINE_PROPERTY(thermal_conductivity_aqNaCl_1023, i_cell, t_cell)
 */
 {
 	real T, w_nv, lambda = 0.;
-	T = C_T(i_cell, t_cell)-273.15; // celcius degree
-	w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
-	lambda = ThermCond_aqNaCl(T, w_nv);
+	if(Data_Valid_P()) 
+	{
+		T = C_T(i_cell, t_cell)-273.15; // celcius degree
+		w_nv = C_YI(i_cell, t_cell, 1); // non-violatile component
+		lambda = ThermCond_aqNaCl(T, w_nv);
+	}
 	return lambda;
 }
 
