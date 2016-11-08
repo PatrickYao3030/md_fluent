@@ -410,7 +410,7 @@ DEFINE_ON_DEMAND(WallCellProp_1108)
 	face_t i_face;
 	Thread *t_cell[2];
 	Thread *t_interface[2];
-	real cp[2], w_nacl[2], rho[2], h[2], vol[2], mu[2], psat[2], wsat_nacl[2];
+	real cp[2], w_h2o[2], w_nacl[2], rho[2], h[2], vol[2], mu[2], psat[2], wsat_nacl[2];
 	real T[2] = {353.2, 303.2}, wi[2] = {0.965, 1.0};
 	real A[ND_ND];
 	Domain *domain = Get_Domain(id_domain);
@@ -425,14 +425,15 @@ DEFINE_ON_DEMAND(WallCellProp_1108)
 			vol[iside] = C_VOLUME(WallCell[i][iside].index, t_cell[iside]);
 			T[iside] = C_T(WallCell[i][iside].index, t_cell[iside]);
 			w_nacl[iside] = C_YI(WallCell[i][iside].index, t_cell[iside], 1);
+			w_h2o[iside] = 1.-w_nacl[iside];
 			rho[iside] = C_R(WallCell[i][iside].index, t_cell[iside]);
 			cp[iside] = C_CP(WallCell[i][iside].index, t_cell[iside]);
 			h[iside] = C_H(WallCell[i][iside].index, t_cell[iside]);
 			mu[iside] = C_MU_L(WallCell[i][iside].index, t_cell[iside]);
-			psat[iside] = WaterVaporPressure_brine(T[iside], w_nacl[0]);
+			psat[iside] = WaterVaporPressure_brine(T[iside], w_h2o[0]);
 			wsat_nacl[iside] = SatConc(T[iside]);
 		}
-		Message("%d. Specific heat %g and %g, mass fraction of NaCl %g and %g, density %g and %g, viscosity %g and %g, sat.pressure %g and %g, sat.massfrac %g at %g\n", i, cp[0], cp[1], w_nacl[0], w_nacl[1], rho[0], rho[1], mu[0], mu[1], psat[0], psat[1], wsat_nacl[0], T[0]);
+		Message("%d. Specific heat %g and %g, mass fraction of NaCl %g and %g, density %g and %g, viscosity %g and %g, sat.pressure %g and %g, sat.massfrac %g at %g K\n", i, cp[0], cp[1], w_nacl[0], w_nacl[1], rho[0], rho[1], mu[0], mu[1], psat[0], psat[1], wsat_nacl[0], T[0]);
 		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) break;
 	}
 	//begin_f_loop(i_face, t_FeedInterface)
