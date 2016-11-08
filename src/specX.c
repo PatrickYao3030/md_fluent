@@ -144,14 +144,15 @@ void MembraneTransfer(int opt)
 			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
 			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
 		}
-		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
-		{
-			mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
-		}
-		else
-		{
-			mass_flux = 0.;
-		}
+		//if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
+		//{
+		//	mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
+		//}
+		//else
+		//{
+		//	mass_flux = 0.;
+		//}
+		mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
@@ -392,7 +393,7 @@ DEFINE_ON_DEMAND(IdentifyInterCells_1103)
 	fclose(fout1);
 }
 
-DEFINE_ON_DEMAND(WallCellProp_1018)
+DEFINE_ON_DEMAND(WallCellProp_1108)
 /*
 	[objectives] check following properties of the wall cells: specific heat (cp)
 	                                                           mass fraction (wx)
@@ -404,34 +405,37 @@ DEFINE_ON_DEMAND(WallCellProp_1018)
 	[outputs] FLUENT command-line output
 */
 {
-	int i = 0;
+	int iside, i = 0;
 	cell_t i_cell;
 	face_t i_face;
-	Thread *t_FeedFluid, *t_PermFluid;
-	Thread *t_FeedInterface, *t_PermInterface;
-	real cp[2], wx[2], rho[2], h[2], vol[2];
+	Thread *t_cell[2];
+	Thread *t_interface[2];
+	real cp[2], w_h2o[2], w_nacl[2], rho[2], h[2], vol[2], mu[2], psat[2], wsat_nacl[2];
 	real T[2] = {353.2, 303.2}, wi[2] = {0.965, 1.0};
 	real A[ND_ND];
 	Domain *domain = Get_Domain(id_domain);
-	t_FeedFluid = Lookup_Thread(domain, id_FeedFluid);
-	t_PermFluid = Lookup_Thread(domain, id_PermFluid);
-	t_FeedInterface = Lookup_Thread(domain, id_FeedInterface);
-	t_PermInterface = Lookup_Thread(domain, id_PermInterface);
-	//for (i=0; i<MAXCELLNUM; i++)
-	//{
-	//	cp[0] = C_CP(WallCell[i][0].index, t_FeedFluid);
-	//	cp[1] = C_CP(WallCell[i][1].index, t_PermFluid);
-	//	wx[0] = C_YI(WallCell[i][0].index, t_FeedFluid, 0);
-	//	wx[1] = C_YI(WallCell[i][1].index, t_PermFluid, 0);
-	//	rho[0] = C_R(WallCell[i][0].index, t_FeedFluid);
-	//	rho[1] = C_R(WallCell[i][1].index, t_PermFluid);
-	//	h[0] = C_H(WallCell[i][0].index, t_FeedFluid);
-	//	h[1] = C_H(WallCell[i][1].index, t_PermFluid);
-	//	vol[0] = C_VOLUME(WallCell[i][0].index, t_FeedFluid);
-	//	vol[1] = C_VOLUME(WallCell[i][1].index, t_PermFluid);
-	//	Message("%d. Specific heat %g, mass fraction %g, density %g, enthalpy %g and cell volume %g\n", i, cp[0], wx[0], rho[0], h[0], vol[0]);
-	//	if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) return;
-	//}
+	t_cell[0] = Lookup_Thread(domain, id_FeedFluid);
+	t_cell[1] = Lookup_Thread(domain, id_PermFluid);
+	t_interface[0] = Lookup_Thread(domain, id_FeedInterface);
+	t_interface[1] = Lookup_Thread(domain, id_PermInterface);
+	for (i=0; i<MAXCELLNUM; i++)
+	{
+		for (iside = 0; iside<2; iside++)
+		{
+			vol[iside] = C_VOLUME(WallCell[i][iside].index, t_cell[iside]);
+			T[iside] = C_T(WallCell[i][iside].index, t_cell[iside]);
+			w_nacl[iside] = C_YI(WallCell[i][iside].index, t_cell[iside], 1);
+			w_h2o[iside] = 1.-w_nacl[iside];
+			rho[iside] = C_R(WallCell[i][iside].index, t_cell[iside]);
+			cp[iside] = C_CP(WallCell[i][iside].index, t_cell[iside]);
+			h[iside] = C_H(WallCell[i][iside].index, t_cell[iside]);
+			mu[iside] = C_MU_L(WallCell[i][iside].index, t_cell[iside]);
+			psat[iside] = WaterVaporPressure_brine(T[iside], w_h2o[0]);
+			wsat_nacl[iside] = SatConc(T[iside]);
+		}
+		Message("%d. Specific heat %g and %g, mass fraction of NaCl %g and %g, density %g and %g, viscosity %g and %g, sat.pressure %g and %g, sat.massfrac %g at %g K\n", i, cp[0], cp[1], w_nacl[0], w_nacl[1], rho[0], rho[1], mu[0], mu[1], psat[0], psat[1], wsat_nacl[0], T[0]);
+		if ((WallCell[i][1].index == 0) & (WallCell[i][1].index == 0)) break;
+	}
 	//begin_f_loop(i_face, t_FeedInterface)
 	//{
 	//	i_cell = F_C0(i_face, t_FeedInterface);
@@ -439,8 +443,8 @@ DEFINE_ON_DEMAND(WallCellProp_1018)
 	//	Message("Cell#%d area vector is [%g, %g]\n", i_cell, A[0], A[1]);
 	//}
 	//end_f_loop(i_face, t_FeedInterface)
-	Message("psat_h2o(%g) = %g\n", T[1], psat_h2o(T[1]));
-	Message("WaterVaporPressure_brine(%g, %g) = %g\n", T[0], wi[0], WaterVaporPressure_brine(T[0], wi[0]));
+	//Message("psat_h2o(%g) = %g\n", T[1], psat_h2o(T[1]));
+	//Message("WaterVaporPressure_brine(%g, %g) = %g\n", T[0], wi[0], WaterVaporPressure_brine(T[0], wi[0]));
 }
 
 DEFINE_ON_DEMAND(TProfile_0914)
