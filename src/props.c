@@ -72,13 +72,13 @@ real SatConc(real t) // saturated concentration for given temperature [K] in ter
 */
 {
 	real temp=0., w_sat = 0.;
-	real A[3] = {0.2628, 62.75e-4, 1.084e-6};
+	real A[3] = {0.2628, 62.75e-6, 1.084e-6};
 	int i;
 	temp = t-273.15;
 	if ((t<0.)||(t>450.)) Message("[WARNING] Solubility correlation at %g C is out of temperature range.\n", t);
 	for (i=0; i<3; i++)
 	{
-		w_sat += A[i]*pow(t, i);
+		w_sat += A[i]*pow(temp, i);
 	}
 	return w_sat;
 }
@@ -203,7 +203,7 @@ real Density_aqNaCl(real T, real w)
 									{-0.0276, 0.2978, -2.017, 6.345, -3.914}};
 	real B[5] = {0., 0., 0., 0., 0.};
 	real C[5] = {1.e3, 1.e0, 1.e-3, 1.e-6, 1.e-6};
-	if ((id_message<2)||(T<0.)||(T>300.)) Message("[WARNING] Density correlation at %g C is out of temperature range.\n", T);
+	if ((id_message<2)&&((T<0.)||(T>300.))) Message("[WARNING] Density correlation at %g C is out of temperature range.\n", T);
 	for (i=0; i<5; i++)
 	{
 		for (j=0; j<5; j++)
@@ -224,7 +224,7 @@ real Viscosity_aqNaCl(real T, real w_nv)
 {
 	real mu = 0.;
 	//if ((T<0.)||(T>80.)) Message("[WARNING] Viscosity correlation at %g C is out of temperature range.\n", T);
-	if ((id_message<2)||(w_nv<0.)||(w_nv>0.25)) Message("[WARNING] Viscosity correlation for salinity of %g is out of mass-fraction range.\n", w_nv);
+	if ((id_message<2)&&((w_nv<0.)||(w_nv>0.25))) Message("[WARNING] Viscosity correlation for salinity of %g is out of mass-fraction range.\n", w_nv);
 	mu = (17.02821-0.39206*T+0.188912*w_nv-0.00466*T*w_nv+0.003025*T*T+0.011738*w_nv*w_nv)*0.001;
 	return mu;
 }
