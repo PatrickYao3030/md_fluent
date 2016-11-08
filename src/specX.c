@@ -144,14 +144,15 @@ void MembraneTransfer(int opt)
 			WallCell[i][iside].temperature = C_T(i_cell[iside], t_fluid[iside]);
 			WallCell[i][iside].massfraction.water = C_YI(i_cell[iside], t_fluid[iside], 0);
 		}
-		if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
-		{
-			mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
-		}
-		else
-		{
-			mass_flux = 0.;
-		}
+		//if (WallCell[i][0].massfraction.water > (1.-SatConc(WallCell[i][0].temperature))) // calculate the mass tranfer across the membrane only if the concentration is below the saturation
+		//{
+		//	mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
+		//}
+		//else
+		//{
+		//	mass_flux = 0.;
+		//}
+		mass_flux = LocalMassFlux(WallCell[i][0].temperature, WallCell[i][1].temperature, WallCell[i][0].massfraction.water, WallCell[i][1].massfraction.water);
 		latent_heat_flux = LocalHeatFlux(0, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux); // calculate the heat transfer across the membrane
 		conductive_heat_flux = LocalHeatFlux(1, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
 		total_heat_flux = LocalHeatFlux(10, WallCell[i][0].temperature, WallCell[i][1].temperature, mass_flux);
