@@ -486,6 +486,49 @@ DEFINE_ON_DEMAND(OutputCells_0913)
 	return;
 }
 
+DEFINE_ON_DEMAND(ReynoldsNumber_1117)
+/*
+	[objectives] output influent's Reynolds number
+	[Preliminary] regist the 3 input parameters
+	[methods] 1. get the parameter one by one
+	          2. set the hydraulic diameter
+						3. get the fluid properties according to the given temperature and concentration (in mass fraction)
+						4. calculate the Reynolds number as its definition
+						5. output the result
+	[outputs] FLUENT command-line output
+*/
+{
+	real vin = RP_Get_Input_Parameter("real-1"); // Get the parameter as input
+	real tin = RP_Get_Input_Parameter("real-2");
+	real win = RP_Get_Input_Parameter("real-3");
+	real diam_h = 0.01875;
+	real rho = Density_aqNaCl(tin, win);
+	real mu = Viscosity_aqNaCl(tin, win);
+	real Re = diam_h*vin*rho/mu;
+	Message("Re_feed = %g\n", Re);
+}
+
+DEFINE_OUTPUT_PARAMETER(Parameter_Re, n, parlist)
+/*
+	[objectives] output influent's Reynolds number
+	[Preliminary] select and pass the 3 parameters to the "parlist" in the order of velocity, temperature and mass fraction
+	[methods] 1. set the hydraulic diameter
+						2. get the fluid properties according to the given temperature and concentration (in mass fraction)
+						3. calculate the Reynolds number as its definition
+	[outputs] output parameter
+*/
+{
+	int i;
+	real vin = parlist[0];
+	real tin = parlist[1];
+	real win = parlist[2];
+	real diam_h = 0.01875;
+	real rho = Density_aqNaCl(tin, win);
+	real mu = Viscosity_aqNaCl(tin, win);
+	real Re = diam_h*vin*rho/mu;
+	return Re;
+}
+
 DEFINE_ADJUST(calc_flux_1007, domain)
 /*
 	[objectives] calculate the flux across the membrane
